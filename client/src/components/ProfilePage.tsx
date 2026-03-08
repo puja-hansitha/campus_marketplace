@@ -52,6 +52,12 @@ export default function ProfilePage() {
       return;
     }
 
+    // Check if anything changed
+    if (name.trim() === currentUserName && profilePhoto === currentUserPhoto) {
+      alert('No changes made to save');
+      return;
+    }
+
     // Update profile in context
     updateUserProfile(name.trim(), profilePhoto);
 
