@@ -74,7 +74,7 @@ export default function SellPage() {
     frame();
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!photo || !description.trim() || !category || !price) {
       setShowErrorModal(true);
       setTimeout(() => {
@@ -83,8 +83,8 @@ export default function SellPage() {
       return;
     }
     
-    // Add product to global state
-    addProduct({
+    // Add product to Firebase
+    await addProduct({
       sellerId: currentUser,
       sellerName: currentUser,
       photo: photoPreview!,
