@@ -1,8 +1,18 @@
 import { useState } from 'react';
+import { useApp } from '../context/AppContext';
 
 export default function BuyPage() {
+  const { products, currentUser } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+
+  // Filter out seller's own products
+  const filteredProducts = products.filter(product => {
+    const notOwnProduct = product.sellerId !== currentUser;
+    const matchesSearch = product.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || product.category === selectedCategory;
+    return notOwnProduct && matchesSearch && matchesCategory;
+  });
 
   return (
     <div>
@@ -31,8 +41,24 @@ export default function BuyPage() {
       </div>
 
       <div className="products-grid">
-        <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center' }}>No products available</p>
+        {filteredProducts.length === 0 ? (
+          <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center' }}>
+            No products available
+          </p>
+        ) : (
+          filteredProducts.map(product => (
+            <div key={product.id} className="product-card">
+              <img src={product.photo} alt={product.description} className="product-image-img" />
+              <h3>{product.description.substring(0, 50)}{product.description.length > 50 ? '...' : ''}</h3>
+              <p className="product-description">{product.description}</p>
+              <p className="product-price">₹{product.price}</p>
+              <p className="seller-name">Seller: {product.sellerName}</p>
+              <button className="interested-btn">Interested to Buy</button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
+

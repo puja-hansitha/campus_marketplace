@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import confetti from 'canvas-confetti';
+import { useApp } from '../context/AppContext';
 
 export default function SellPage() {
+  const { addProduct, currentUser } = useApp();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [description, setDescription] = useState('');
@@ -57,6 +59,16 @@ export default function SellPage() {
       alert('Please fill all fields');
       return;
     }
+    
+    // Add product to global state
+    addProduct({
+      sellerId: currentUser,
+      sellerName: currentUser,
+      photo: photoPreview!,
+      description: description.trim(),
+      category,
+      price,
+    });
     
     // Trigger confetti
     triggerConfetti();

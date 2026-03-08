@@ -7,6 +7,7 @@ import HistoryPage from './components/HistoryPage';
 import ProfilePage from './components/ProfilePage';
 import RequestsPage from './components/RequestsPage';
 import NotificationsDropdown from './components/NotificationsDropdown';
+import { AppProvider } from './context/AppContext';
 
 interface DashboardProps {
   userName: string;
@@ -62,75 +63,77 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="dashboard">
-      {/* Top bar with notifications and logout */}
-      <div className="top-bar">
-        <div className="top-bar-right">
+    <AppProvider userName={userName}>
+      <div className="dashboard">
+        {/* Top bar with notifications and logout */}
+        <div className="top-bar">
+          <div className="top-bar-right">
+            <button 
+              className="notification-btn"
+              onClick={() => setShowNotifications(!showNotifications)}
+            >
+              🔔
+            </button>
+            {showNotifications && (
+              <NotificationsDropdown onClose={() => setShowNotifications(false)} />
+            )}
+            <button onClick={onLogout} className="logout-btn">
+              Logout
+            </button>
+          </div>
+        </div>
+
+        {/* Left menu */}
+        <div className="left-menu">
           <button 
-            className="notification-btn"
-            onClick={() => setShowNotifications(!showNotifications)}
+            className={`menu-item ${currentPage === 'home' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('home')}
           >
-            🔔
+            Home
           </button>
-          {showNotifications && (
-            <NotificationsDropdown onClose={() => setShowNotifications(false)} />
-          )}
-          <button onClick={onLogout} className="logout-btn">
-            Logout
+          <button 
+            className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('profile')}
+          >
+            Profile
+          </button>
+          <button 
+            className={`menu-item ${currentPage === 'sell' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('sell')}
+          >
+            Sell
+          </button>
+          <button 
+            className={`menu-item ${currentPage === 'buy' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('buy')}
+          >
+            Buy
+          </button>
+          <button 
+            className={`menu-item ${currentPage === 'requests' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('requests')}
+          >
+            Requests
+          </button>
+          <button 
+            className={`menu-item ${currentPage === 'messages' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('messages')}
+          >
+            Messages
+          </button>
+          <button 
+            className={`menu-item ${currentPage === 'history' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('history')}
+          >
+            History
           </button>
         </div>
-      </div>
 
-      {/* Left menu */}
-      <div className="left-menu">
-        <button 
-          className={`menu-item ${currentPage === 'home' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('home')}
-        >
-          Home
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('profile')}
-        >
-          Profile
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'sell' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('sell')}
-        >
-          Sell
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'buy' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('buy')}
-        >
-          Buy
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'requests' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('requests')}
-        >
-          Requests
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'messages' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('messages')}
-        >
-          Messages
-        </button>
-        <button 
-          className={`menu-item ${currentPage === 'history' ? 'active' : ''}`}
-          onClick={() => setCurrentPage('history')}
-        >
-          History
-        </button>
+        {/* Main content */}
+        <div className="main-content">
+          {renderContent()}
+        </div>
       </div>
-
-      {/* Main content */}
-      <div className="main-content">
-        {renderContent()}
-      </div>
-    </div>
+    </AppProvider>
   );
 }
