@@ -11,6 +11,7 @@ export default function SellPage() {
   const [price, setPrice] = useState('');
   const [displayPrice, setDisplayPrice] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,7 +76,10 @@ export default function SellPage() {
 
   const handlePost = () => {
     if (!photo || !description.trim() || !category || !price) {
-      alert('Please fill all fields');
+      setShowErrorModal(true);
+      setTimeout(() => {
+        setShowErrorModal(false);
+      }, 3000);
       return;
     }
     
@@ -169,6 +173,16 @@ export default function SellPage() {
             <div className="success-icon">✓</div>
             <h2>Product Listed Successfully!</h2>
             <p>Your product is now live and visible to buyers</p>
+          </div>
+        </div>
+      )}
+
+      {showErrorModal && (
+        <div className="error-modal-overlay">
+          <div className="error-modal">
+            <div className="error-icon">⚠</div>
+            <h2>Missing Information</h2>
+            <p>Please fill all fields to post your product</p>
           </div>
         </div>
       )}
