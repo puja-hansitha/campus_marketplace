@@ -1,11 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './Auth.css';
 import Dashboard from './Dashboard';
 
-// Simple in-memory user storage (will be replaced with Firebase later)
-const users: { [email: string]: { name: string; password: string } } = {};
+// Load users from localStorage
+const loadUsers = () => {
+  const saved = localStorage.getItem('campusMarketUsers');
+  return saved ? JSON.parse(saved) : {};
+};
+
+// Save users to localStorage
+const saveUsers = (users: { [email: string]: { name: string; password: string } }) => {
+  localStorage.setItem('campusMarketUsers', JSON.stringify(users));
+};
 
 export default function App() {
+  const [users, setUsers] = useState<{ [email: string]: { name: string; password: string } }>(loadUsers);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
@@ -15,6 +24,11 @@ export default function App() {
   const [loggedInEmail, setLoggedInEmail] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Save users whenever they change
+  useEffect(() => {
+    saveUsers(users);
+  }, [users]);
 
   const showError = (message: string) => {
     setErrorMessage(message);
@@ -57,7 +71,8 @@ export default function App() {
         return;
       }
       // Register successful
-      users[email.toLowerCase()] = { name: name.trim(), password };
+      const newUsers = { ...users, [email.toLowerCase()]: { name: name.trim(), password } };
+      setUsers(newUsers);
       showError('Registration successful! Please login.');
       setIsLogin(true);
       setPassword('');

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 interface Product {
@@ -24,9 +24,19 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children, userName: initialUserName, userEmail }: { children: ReactNode; userName: string; userEmail: string }) {
-  const [products, setProducts] = useState<Product[]>([]);
+  // Load products from localStorage on mount
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('campusMarketProducts');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
   const [userName, setUserName] = useState(initialUserName);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
+
+  // Save products to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('campusMarketProducts', JSON.stringify(products));
+  }, [products]);
 
   const addProduct = (product: Omit<Product, 'id' | 'createdAt'>) => {
     const newProduct: Product = {
