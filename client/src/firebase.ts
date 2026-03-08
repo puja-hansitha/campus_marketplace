@@ -3,14 +3,14 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-// TODO: Replace with your Firebase config
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyADLr-TwnkPshZXAm6nXg4ifFauWY-MA5k",
+  authDomain: "campusmart-489520.firebaseapp.com",
+  projectId: "campusmart-489520",
+  storageBucket: "campusmart-489520.firebasestorage.app",
+  messagingSenderId: "990290742199",
+  appId: "1:990290742199:web:5e245741559dd2a6197632",
+  measurementId: "G-7SP544H8TC"
 };
 
 const app = initializeApp(firebaseConfig);

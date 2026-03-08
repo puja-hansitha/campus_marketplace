@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Product {
   id: string;
@@ -24,45 +26,48 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children, userName: initialUserName, userEmail }: { children: ReactNode; userName: string; userEmail: string }) {
-  // Load products from localStorage on mount
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('campusMarketProducts');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+  const [products, setProducts] = useState<Product[]>([]);
   const [userName, setUserName] = useState(initialUserName);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
-  // Save products to localStorage whenever they change
+  // Listen to Firestore products in real-time
   useEffect(() => {
-    localStorage.setItem('campusMarketProducts', JSON.stringify(products));
-  }, [products]);
+    const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const productsData: Product[] = [];
+      snapshot.forEach((doc) => {
+        productsData.push({ id: doc.id, ...doc.data() } as Product);
+      });
+      setProducts(productsData);
+    });
 
-  const addProduct = (product: Omit<Product, 'id' | 'createdAt'>) => {
-    const newProduct: Product = {
-      ...product,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
-      sellerName: userName, // Use current userName
-      sellerId: userEmail, // Use email as unique seller ID
-    };
-    setProducts(prev => [newProduct, ...prev]);
+    return () => unsubscribe();
+  }, []);
+
+  const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
+    try {
+      await addDoc(collection(db, 'products'), {
+        ...product,
+        sellerName: userName,
+        sellerId: userEmail,
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      console.error('Error adding product:', error);
+      alert('Failed to add product. Please try again.');
+    }
   };
 
   const updateUserProfile = (name: string, photo: string | null) => {
     setUserName(name);
     setUserPhoto(photo);
-    // Update seller name in all existing products
-    setProducts(prev => prev.map(p => 
-      p.sellerId === userEmail ? { ...p, sellerName: name } : p
-    ));
   };
 
   return (
     <AppContext.Provider value={{ 
       products, 
       addProduct, 
-      currentUser: userEmail, // Use email as unique identifier
+      currentUser: userEmail,
       userName,
       userPhoto,
       updateUserProfile
