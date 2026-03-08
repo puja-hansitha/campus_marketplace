@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function BuyPage() {
   const { products, currentUser } = useApp();
@@ -13,12 +15,25 @@ export default function BuyPage() {
     return num.toLocaleString('en-IN');
   };
 
-  const handleInterested = (productId: string) => {
-    setInterestedProducts(prev => new Set(prev).add(productId));
-    setShowSuccessMessage(true);
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-    }, 3000);
+  const handleInterested = async (productId: string) => {
+    try {
+      // Save interest to Firebase
+      await addDoc(collection(db, 'interests'), {
+        productId,
+        buyerId: currentUser,
+        buyerName: products.find(p => p.id === productId)?.sellerName || currentUser,
+        createdAt: Date.now(),
+      });
+      
+      setInterestedProducts(prev => new Set(prev).add(productId));
+      setShowSuccessMessage(true);
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error sending interest:', error);
+      alert('Failed to send request. Please try again.');
+    }
   };
 
   // Filter out seller's own products
