@@ -213,3 +213,24 @@
   margin: 0;
   font-weight: 500;
 }
+
+/* Remember Me */
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 15px 0;
+}
+
+.remember-me input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.remember-me label {
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+  margin: 0;
+}

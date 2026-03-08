@@ -20,12 +20,24 @@ export default function App() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState('');
   const [loggedInEmail, setLoggedInEmail] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Check if user is already logged in (remember me)
+  useEffect(() => {
+    const savedUser = localStorage.getItem('rememberedUser');
+    if (savedUser) {
+      const { name, email } = JSON.parse(savedUser);
+      setLoggedInUser(name);
+      setLoggedInEmail(email);
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   // Save users whenever they change
   useEffect(() => {
@@ -57,6 +69,15 @@ export default function App() {
       // Login successful
       setLoggedInUser(user.name);
       setLoggedInEmail(email.toLowerCase());
+      
+      // Save to localStorage if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem('rememberedUser', JSON.stringify({
+          name: user.name,
+          email: email.toLowerCase()
+        }));
+      }
+      
       setIsLoggedIn(true);
     } else {
       // Register validation
@@ -92,6 +113,8 @@ export default function App() {
       setPassword('');
       setName('');
       setLoggedInEmail('');
+      // Clear remember me
+      localStorage.removeItem('rememberedUser');
     }} />;
   }
 
@@ -130,6 +153,19 @@ export default function App() {
               minLength={6}
             />
           </div>
+          
+          {isLogin && (
+            <div className="remember-me">
+              <input
+                type="checkbox"
+                id="remember-me"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <label htmlFor="remember-me">Remember me</label>
+            </div>
+          )}
+          
           <button type="submit" className="btn">
             {isLogin ? 'Login' : 'Register'}
           </button>
