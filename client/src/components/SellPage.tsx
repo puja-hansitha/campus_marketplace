@@ -9,6 +9,7 @@ export default function SellPage() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+  const [displayPrice, setDisplayPrice] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,6 +26,24 @@ export default function SellPage() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const formatIndianNumber = (value: string) => {
+    // Remove all non-digits
+    const num = value.replace(/\D/g, '');
+    if (!num) return '';
+    
+    // Convert to Indian format
+    const formatted = parseInt(num).toLocaleString('en-IN');
+    return formatted;
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Remove all non-digits
+    const numericValue = value.replace(/\D/g, '');
+    setPrice(numericValue);
+    setDisplayPrice(formatIndianNumber(numericValue));
   };
 
   const triggerConfetti = () => {
@@ -83,6 +102,7 @@ export default function SellPage() {
       setDescription('');
       setCategory('');
       setPrice('');
+      setDisplayPrice('');
       const fileInput = document.getElementById('photo-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
       setShowSuccessModal(false);
@@ -133,10 +153,10 @@ export default function SellPage() {
         <div className="form-group">
           <label>Price (₹)</label>
           <input 
-            type="number" 
+            type="text" 
             placeholder="Enter price"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            value={displayPrice}
+            onChange={handlePriceChange}
           />
         </div>
         
