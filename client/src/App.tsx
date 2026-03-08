@@ -12,6 +12,17 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loggedInUser, setLoggedInUser] = useState('');
+  const [loggedInEmail, setLoggedInEmail] = useState('');
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorModal(true);
+    setTimeout(() => {
+      setShowErrorModal(false);
+    }, 3000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,44 +31,46 @@ export default function App() {
       // Login validation
       const user = users[email.toLowerCase()];
       if (!user) {
-        alert('Email not registered. Please register first.');
+        showError('Email or password is incorrect. Please try again.');
         return;
       }
       if (user.password !== password) {
-        alert('Incorrect password. Please try again.');
+        showError('Email or password is incorrect. Please try again.');
         return;
       }
       // Login successful
       setLoggedInUser(user.name);
+      setLoggedInEmail(email.toLowerCase());
       setIsLoggedIn(true);
     } else {
       // Register validation
       if (users[email.toLowerCase()]) {
-        alert('Email already registered. Please login instead.');
+        showError('Email already registered. Please login instead.');
         return;
       }
       if (!name.trim()) {
-        alert('Please enter your name');
+        showError('Please enter your name');
         return;
       }
       if (password.length < 6) {
-        alert('Password must be at least 6 characters long');
+        showError('Password must be at least 6 characters long');
         return;
       }
       // Register successful
       users[email.toLowerCase()] = { name: name.trim(), password };
-      alert('Registration successful! Please login.');
+      showError('Registration successful! Please login.');
       setIsLogin(true);
       setPassword('');
     }
   };
 
   if (isLoggedIn) {
-    return <Dashboard userName={loggedInUser} onLogout={() => {
+    return <Dashboard userName={loggedInUser} userEmail={loggedInEmail} onLogout={() => {
       setIsLoggedIn(false);
       setEmail('');
       setPassword('');
       setName('');
+      setLoggedInEmail('');
     }} />;
   }
 
@@ -110,6 +123,15 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {showErrorModal && (
+        <div className="error-modal-overlay">
+          <div className="error-modal">
+            <div className="error-icon">⚠</div>
+            <p>{errorMessage}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

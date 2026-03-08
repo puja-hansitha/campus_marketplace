@@ -23,7 +23,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export function AppProvider({ children, userName: initialUserName }: { children: ReactNode; userName: string }) {
+export function AppProvider({ children, userName: initialUserName, userEmail }: { children: ReactNode; userName: string; userEmail: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [userName, setUserName] = useState(initialUserName);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
@@ -34,6 +34,7 @@ export function AppProvider({ children, userName: initialUserName }: { children:
       id: Date.now().toString(),
       createdAt: Date.now(),
       sellerName: userName, // Use current userName
+      sellerId: userEmail, // Use email as unique seller ID
     };
     setProducts(prev => [newProduct, ...prev]);
   };
@@ -43,7 +44,7 @@ export function AppProvider({ children, userName: initialUserName }: { children:
     setUserPhoto(photo);
     // Update seller name in all existing products
     setProducts(prev => prev.map(p => 
-      p.sellerId === initialUserName ? { ...p, sellerName: name } : p
+      p.sellerId === userEmail ? { ...p, sellerName: name } : p
     ));
   };
 
@@ -51,7 +52,7 @@ export function AppProvider({ children, userName: initialUserName }: { children:
     <AppContext.Provider value={{ 
       products, 
       addProduct, 
-      currentUser: initialUserName,
+      currentUser: userEmail, // Use email as unique identifier
       userName,
       userPhoto,
       updateUserProfile

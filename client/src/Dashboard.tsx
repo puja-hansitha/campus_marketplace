@@ -11,10 +11,11 @@ import { AppProvider } from './context/AppContext';
 
 interface DashboardProps {
   userName: string;
+  userEmail: string;
   onLogout: () => void;
 }
 
-export default function Dashboard({ userName, onLogout }: DashboardProps) {
+export default function Dashboard({ userName, userEmail, onLogout }: DashboardProps) {
   const [currentPage, setCurrentPage] = useState('home');
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -63,7 +64,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   };
 
   return (
-    <AppProvider userName={userName}>
+    <AppProvider userName={userName} userEmail={userEmail}>
       <div className="dashboard">
         {/* Top bar with notifications and logout */}
         <div className="top-bar">
