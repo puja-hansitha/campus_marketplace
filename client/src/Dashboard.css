@@ -655,9 +655,10 @@
 
 .item-price {
   color: #11998e;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   margin-bottom: 10px;
+  display: block;
 }
 
 .interested-count,
