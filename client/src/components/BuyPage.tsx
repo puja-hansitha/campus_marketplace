@@ -6,6 +6,11 @@ export default function BuyPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
+  const formatIndianPrice = (price: string) => {
+    const num = parseInt(price);
+    return num.toLocaleString('en-IN');
+  };
+
   // Filter out seller's own products
   const filteredProducts = products.filter(product => {
     const notOwnProduct = product.sellerId !== currentUser;
@@ -51,7 +56,7 @@ export default function BuyPage() {
               <img src={product.photo} alt={product.description} className="product-image-img" />
               <h3>{product.description.substring(0, 50)}{product.description.length > 50 ? '...' : ''}</h3>
               <p className="product-description">{product.description}</p>
-              <p className="product-price">₹{product.price}</p>
+              <p className="product-price">₹{formatIndianPrice(product.price)}</p>
               <p className="seller-name">Seller: {product.sellerName}</p>
               <button className="interested-btn">Interested to Buy</button>
             </div>
