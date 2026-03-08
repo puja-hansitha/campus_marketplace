@@ -32,29 +32,39 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
 
   // Listen to Firestore products in real-time
   useEffect(() => {
+    console.log('Setting up Firestore listener...');
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const productsData: Product[] = [];
-      snapshot.forEach((doc) => {
-        productsData.push({ id: doc.id, ...doc.data() } as Product);
-      });
-      setProducts(productsData);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        console.log('Received products:', snapshot.size);
+        const productsData: Product[] = [];
+        snapshot.forEach((doc) => {
+          productsData.push({ id: doc.id, ...doc.data() } as Product);
+        });
+        setProducts(productsData);
+      },
+      (error) => {
+        console.error('Firestore error:', error);
+        alert('Error loading products: ' + error.message);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
 
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'products'), {
+      console.log('Adding product to Firestore...');
+      const docRef = await addDoc(collection(db, 'products'), {
         ...product,
         sellerName: userName,
         sellerId: userEmail,
         createdAt: Date.now(),
       });
-    } catch (error) {
+      console.log('Product added with ID:', docRef.id);
+    } catch (error: any) {
       console.error('Error adding product:', error);
-      alert('Failed to add product. Please try again.');
+      alert('Failed to add product: ' + error.message);
     }
   };
 
