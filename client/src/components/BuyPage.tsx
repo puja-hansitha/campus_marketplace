@@ -5,10 +5,18 @@ export default function BuyPage() {
   const { products, currentUser } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   const formatIndianPrice = (price: string) => {
     const num = parseInt(price);
     return num.toLocaleString('en-IN');
+  };
+
+  const handleInterested = () => {
+    setShowSuccessMessage(true);
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+    }, 3000);
   };
 
   // Filter out seller's own products
@@ -58,11 +66,17 @@ export default function BuyPage() {
               <p className="product-description">{product.description}</p>
               <p className="product-price">₹{formatIndianPrice(product.price)}</p>
               <p className="seller-name">Seller: {product.sellerName}</p>
-              <button className="interested-btn">Interested to Buy</button>
+              <button className="interested-btn" onClick={handleInterested}>Interested to Buy</button>
             </div>
           ))
         )}
       </div>
+
+      {showSuccessMessage && (
+        <div className="success-toast">
+          ✓ Request sent successfully to seller!
+        </div>
+      )}
     </div>
   );
 }
