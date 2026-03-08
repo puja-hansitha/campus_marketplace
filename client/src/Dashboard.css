@@ -950,3 +950,81 @@
   padding: 40px;
   color: #999;
 }
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .left-menu {
+    width: 180px;
+  }
+  
+  .main-content {
+    margin-left: 180px;
+  }
+  
+  .hero-section {
+    gap: 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .left-menu {
+    width: 100%;
+    height: auto;
+    position: relative;
+    top: 0;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px;
+  }
+  
+  .menu-item {
+    padding: 10px 15px;
+    white-space: nowrap;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    margin-top: 130px;
+    padding: 20px;
+  }
+  
+  .hero-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .messages-container,
+  .requests-container {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  
+  .messages-list,
+  .products-list {
+    max-height: 300px;
+  }
+  
+  .products-grid,
+  .items-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .buy-filters {
+    flex-direction: column;
+  }
+  
+  .notifications-dropdown {
+    width: calc(100vw - 40px);
+    right: 20px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .main-content {
+    max-width: 1400px;
+  }
+  
+  .hero-section {
+    max-width: 1200px;
+  }
+}

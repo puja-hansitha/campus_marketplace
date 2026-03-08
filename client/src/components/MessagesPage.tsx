@@ -1,8 +1,4 @@
-import { useState } from 'react';
-
 export default function MessagesPage() {
-  const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
-
   return (
     <div>
       <h1>Messages</h1>

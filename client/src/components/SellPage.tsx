@@ -1,34 +1,43 @@
 import { useState } from 'react';
 
 export default function SellPage() {
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.size <= 5 * 1024 * 1024) {
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+      setPhoto(file);
       const reader = new FileReader();
       reader.onload = (event) => {
-        setPhoto(event.target?.result as string);
+        setPhotoPreview(event.target?.result as string);
       };
       reader.readAsDataURL(file);
-    } else {
-      alert('File size must be less than 5MB');
     }
   };
 
   const handlePost = () => {
-    if (!photo || !description || !category || !price) {
+    if (!photo || !description.trim() || !category || !price) {
       alert('Please fill all fields');
       return;
     }
     alert('Product posted successfully!');
+    // Reset form
     setPhoto(null);
+    setPhotoPreview(null);
     setDescription('');
     setCategory('');
     setPrice('');
+    // Reset file input
+    const fileInput = document.getElementById('photo-input') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
   };
 
   return (
@@ -46,8 +55,8 @@ export default function SellPage() {
           <label htmlFor="photo-input" className="photo-upload-btn">
             📷 Upload Photo
           </label>
-          {photo && (
-            <img src={photo} alt="Preview" className="photo-preview" />
+          {photoPreview && (
+            <img src={photoPreview} alt="Preview" className="photo-preview" />
           )}
         </div>
         

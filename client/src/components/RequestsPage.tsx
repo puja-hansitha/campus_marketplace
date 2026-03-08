@@ -1,8 +1,4 @@
-import { useState } from 'react';
-
 export default function RequestsPage() {
-  const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
-
   return (
     <div>
       <h1>Requests</h1>
