@@ -21,7 +21,7 @@ export default function Dashboard({ userName, onLogout }: DashboardProps) {
   const renderContent = () => {
     switch (currentPage) {
       case 'profile':
-        return <ProfilePage userName={userName} />;
+        return <ProfilePage />;
       case 'sell':
         return <SellPage />;
       case 'buy':

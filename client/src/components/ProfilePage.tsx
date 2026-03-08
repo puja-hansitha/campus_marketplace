@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import confetti from 'canvas-confetti';
+import { useApp } from '../context/AppContext';
 
-export default function ProfilePage({ userName }: { userName: string }) {
-  const [name, setName] = useState(userName);
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+export default function ProfilePage() {
+  const { userName: currentUserName, userPhoto: currentUserPhoto, updateUserProfile } = useApp();
+  const [name, setName] = useState(currentUserName);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(currentUserPhoto);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -15,8 +19,52 @@ export default function ProfilePage({ userName }: { userName: string }) {
     }
   };
 
+  const triggerConfetti = () => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
+      });
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
+  };
+
   const handleSave = () => {
-    alert('Profile updated successfully!');
+    if (!name.trim()) {
+      alert('Name cannot be empty');
+      return;
+    }
+
+    // Update profile in context
+    updateUserProfile(name.trim(), profilePhoto);
+
+    // Trigger confetti
+    triggerConfetti();
+
+    // Show success modal
+    setShowSuccessModal(true);
+
+    // Hide modal after 3 seconds
+    setTimeout(() => {
+      setShowSuccessModal(false);
+    }, 3000);
   };
 
   return (
@@ -55,6 +103,16 @@ export default function ProfilePage({ userName }: { userName: string }) {
 
         <button className="save-btn" onClick={handleSave}>Save Changes</button>
       </div>
+
+      {showSuccessModal && (
+        <div className="success-modal-overlay">
+          <div className="success-modal">
+            <div className="success-icon">✓</div>
+            <h2>Profile Updated Successfully!</h2>
+            <p>Your changes have been saved</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
