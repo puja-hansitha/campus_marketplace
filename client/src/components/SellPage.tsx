@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import confetti from 'canvas-confetti';
 
 export default function SellPage() {
   const [photo, setPhoto] = useState<File | null>(null);
@@ -6,6 +7,7 @@ export default function SellPage() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -23,21 +25,56 @@ export default function SellPage() {
     }
   };
 
+  const triggerConfetti = () => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
+      });
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
+  };
+
   const handlePost = () => {
     if (!photo || !description.trim() || !category || !price) {
       alert('Please fill all fields');
       return;
     }
-    alert('Product posted successfully!');
-    // Reset form
-    setPhoto(null);
-    setPhotoPreview(null);
-    setDescription('');
-    setCategory('');
-    setPrice('');
-    // Reset file input
-    const fileInput = document.getElementById('photo-input') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
+    
+    // Trigger confetti
+    triggerConfetti();
+    
+    // Show success modal
+    setShowSuccessModal(true);
+    
+    // Reset form after 3 seconds
+    setTimeout(() => {
+      setPhoto(null);
+      setPhotoPreview(null);
+      setDescription('');
+      setCategory('');
+      setPrice('');
+      const fileInput = document.getElementById('photo-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      setShowSuccessModal(false);
+    }, 3000);
   };
 
   return (
@@ -93,6 +130,16 @@ export default function SellPage() {
         
         <button className="post-btn" onClick={handlePost}>Post Product</button>
       </div>
+
+      {showSuccessModal && (
+        <div className="success-modal-overlay">
+          <div className="success-modal">
+            <div className="success-icon">✓</div>
+            <h2>Product Listed Successfully!</h2>
+            <p>Your product is now live and visible to buyers</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
