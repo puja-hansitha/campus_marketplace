@@ -6,13 +6,15 @@ export default function BuyPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
 
   const formatIndianPrice = (price: string) => {
     const num = parseInt(price);
     return num.toLocaleString('en-IN');
   };
 
-  const handleInterested = () => {
+  const handleInterested = (productId: string) => {
+    setInterestedProducts(prev => new Set(prev).add(productId));
     setShowSuccessMessage(true);
     setTimeout(() => {
       setShowSuccessMessage(false);
@@ -59,16 +61,25 @@ export default function BuyPage() {
             No products available
           </p>
         ) : (
-          filteredProducts.map(product => (
-            <div key={product.id} className="product-card">
-              <img src={product.photo} alt={product.description} className="product-image-img" />
-              <h3>{product.description.substring(0, 50)}{product.description.length > 50 ? '...' : ''}</h3>
-              <p className="product-description">{product.description}</p>
-              <p className="product-price">₹{formatIndianPrice(product.price)}</p>
-              <p className="seller-name">Seller: {product.sellerName}</p>
-              <button className="interested-btn" onClick={handleInterested}>Interested to Buy</button>
-            </div>
-          ))
+          filteredProducts.map(product => {
+            const isInterested = interestedProducts.has(product.id);
+            return (
+              <div key={product.id} className="product-card">
+                <img src={product.photo} alt={product.description} className="product-image-img" />
+                <h3>{product.description.substring(0, 50)}{product.description.length > 50 ? '...' : ''}</h3>
+                <p className="product-description">{product.description}</p>
+                <p className="product-price">₹{formatIndianPrice(product.price)}</p>
+                <p className="seller-name">Seller: {product.sellerName}</p>
+                <button 
+                  className={`interested-btn ${isInterested ? 'disabled' : ''}`}
+                  onClick={() => !isInterested && handleInterested(product.id)}
+                  disabled={isInterested}
+                >
+                  {isInterested ? '✓ Request Sent' : 'Interested to Buy'}
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 
