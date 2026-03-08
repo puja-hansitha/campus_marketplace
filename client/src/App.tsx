@@ -24,6 +24,8 @@ export default function App() {
   const [loggedInEmail, setLoggedInEmail] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Save users whenever they change
   useEffect(() => {
@@ -73,7 +75,11 @@ export default function App() {
       // Register successful
       const newUsers = { ...users, [email.toLowerCase()]: { name: name.trim(), password } };
       setUsers(newUsers);
-      showError('Registration successful! Please login.');
+      setSuccessMessage('Registration successful! Please login.');
+      setShowSuccessModal(true);
+      setTimeout(() => {
+        setShowSuccessModal(false);
+      }, 3000);
       setIsLogin(true);
       setPassword('');
     }
@@ -144,6 +150,15 @@ export default function App() {
           <div className="error-modal">
             <div className="error-icon">⚠</div>
             <p>{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {showSuccessModal && (
+        <div className="success-modal-overlay">
+          <div className="success-modal-auth">
+            <div className="success-icon-auth">✓</div>
+            <p>{successMessage}</p>
           </div>
         </div>
       )}
