@@ -1,0 +1,233 @@
+CAMPUS MARKETPLACE - PROBLEM STATEMENT
+========================================
+
+PROJECT OVERVIEW
+----------------
+A college marketplace website where students can buy and sell products within their campus community.
+
+AUTHENTICATION
+--------------
+- Login/Register page with tea green background
+- White login block with black text
+- Register: name, email, password (no email verification initially)
+- Login: email, password
+- Google OAuth to be added later
+
+MAIN INTERFACE
+--------------
+After login:
+- Sell & Buy buttons (main options)
+- Left top menu: Profile, Sell, Buy, Messages, History
+- Top right: Bell icon (notifications) + Logout button
+
+PROFILE
+-------
+- Edit name
+- Change profile photo
+
+SELL FEATURE
+------------
+Pop-up form with:
+- Single photo upload (jpg/png/webp, 5MB max, auto-resize to 1200px width)
+- Description text field
+- Category dropdown: Stationery, Books, Electronics, Other
+- Price field
+- Post button
+
+BUY FEATURE
+-----------
+- Search bar to find products
+- Category filter (Stationery/Books/Electronics/Other)
+- Products display: photo, description, price
+- "Interested to buy" button
+- Sellers don't see their own products in buy section
+- Sold products disappear from buy page completely
+
+REQUESTS SYSTEM
+---------------
+For Buyers:
+- Can withdraw interest request before seller responds
+- After showing interest, can message seller
+- Receive notification when seller clicks "Sell to you"
+- Get confirmation request when seller marks "Bought by"
+- Can Confirm, Dispute, or ignore (48hr auto-confirm)
+- Max 2 disputes per product, then blocked from that product
+
+For Sellers:
+- See interested buyers grouped by product
+- Can click "Sell to you" on multiple buyers (keeps options open)
+- Click "Bought by [person]" to initiate sale
+- Can cancel "Bought by" if clicked wrong person
+- Get notified if buyer disputes
+- After 2 disputes with same buyer, sale auto-cancels
+
+CONFIRMATION FLOW
+-----------------
+1. Seller clicks "Bought by [person]"
+2. Buyer receives notification with 3 options:
+   - Confirm: Product moves to Sold/Bought history, other requests auto-declined with "already bought" message
+   - Dispute: Product stays pending, seller notified, seller can cancel "Bought by"
+   - No action: After 48 hours, auto-confirms
+3. If 2 disputes occur between same buyer-product pair, buyer blocked from that product
+4. Product goes back to active, other buyers can still purchase
+
+MESSAGING SYSTEM
+----------------
+- Only activates after buyer clicks "interested to buy"
+- Organized by product (Instagram/WhatsApp style)
+- Click product → see all conversations for that product
+- Unread message count badge (updates in real-time)
+- Count disappears when messages are read
+- Messages auto-delete 3 days after product is sold
+- Warning notification sent before deletion
+
+NOTIFICATIONS
+-------------
+Bell icon in top right with unread badge showing:
+- Buyer showed interest in your product
+- Seller clicked "Sell to you"
+- Buyer confirmed/disputed purchase
+- Product sold to someone else (already bought)
+- 48hr auto-confirmation occurred
+- Messages will delete in 3 days warning
+- Product removed by seller (if you showed interest)
+
+Features:
+- Unread count badge on bell icon
+- Click notification to mark as read
+- Manually delete notifications
+- Auto-delete after 7 days
+- Click notification to navigate to relevant product/message/request
+
+HISTORY PAGE
+------------
+Three sections:
+
+1. Selling (Current Listings):
+   - Products not yet sold
+   - Edit button: Can edit description only (price/category locked after interest shown)
+   - Delete button: Shows confirmation if buyers interested, notifies them if deleted
+   - When sold, moves to "Sold" section
+
+2. Sold:
+   - Completed sales
+   - Shows: product image, buyer name, price
+   - Products automatically move here after buyer confirms purchase
+
+3. Bought:
+   - Purchased items
+   - Shows: product image, seller name, price
+   - Added when buyer confirms purchase
+
+EDIT/DELETE RULES
+-----------------
+- Can edit/delete from History → Selling section
+- After buyers show interest:
+  - Description: Can edit
+  - Price/Category: Locked (shows warning: "Price locked - buyers interested")
+- Delete with active interests: Shows confirmation "X buyers are interested. Delete anyway?"
+- If deleted, interested buyers notified: "Product removed by seller"
+
+IMAGE HANDLING
+--------------
+- Single photo per product
+- Accepted formats: jpg, jpeg, png, webp
+- Max size: 5MB
+- Auto-resize to 1200px width for optimization
+- Validation on upload
+
+TECHNICAL STACK
+---------------
+- Frontend: React
+- Backend: Firebase (Firestore, Auth, Storage, Hosting)
+- Real-time updates for messages and notifications
+- Image storage: Firebase Storage
+- Authentication: Firebase Auth (email/password, Google OAuth later)
+
+SECURITY & VALIDATION
+---------------------
+- Password hashing (Firebase Auth handles this)
+- Image file type and size validation
+- Max 2 disputes per buyer-product pair
+- Rate limiting on requests (Firebase security rules)
+
+USER FLOWS
+----------
+Seller Flow:
+1. Login → Click Sell → Upload photo, add details → Post
+2. Buyers show interest → Appear in Requests
+3. Select multiple buyers → Click "Sell to you"
+4. Negotiate via messages
+5. Click "Bought by [person]"
+6. Wait for buyer confirmation (or 48hr auto-confirm)
+7. Product moves to Sold history
+
+Buyer Flow:
+1. Login → Click Buy → Search/filter products
+2. Click "Interested to buy" on product
+3. Receive notification if seller clicks "Sell to you"
+4. Message seller to negotiate
+5. Receive confirmation request when seller marks "Bought by"
+6. Click Confirm → Product moves to Bought history
+7. Messages auto-delete after 3 days
+
+EDGE CASES HANDLED
+------------------
+- Seller clicks wrong person for "Bought by" → Can cancel
+- Buyer forgets to confirm → 48hr auto-confirm
+- Buyer disputes falsely → Max 2 disputes, then blocked
+- Seller deletes listing with interests → Buyers notified
+- Multiple buyers interested → Seller can select multiple "Sell to you"
+- Product sold → Other pending requests auto-declined
+- Messages after sale → Auto-delete after 3 days with warning
+- Notifications overflow → Auto-delete after 7 days
+
+FUTURE ENHANCEMENTS (Not in MVP)
+--------------------------------
+- Google OAuth integration
+- User ratings/reputation system
+- Report/block abusive users
+- Product condition field (new/used)
+- Price negotiation tracking
+- Bulk actions (delete multiple listings)
+- Product views counter
+- Save/favorite products
+- Admin moderation panel
+- Email notifications
+- Push notifications
+- Image compression improvements
+- Multiple photos per product
+- Product quantity field
+
+DESIGN SPECIFICATIONS
+---------------------
+Colors:
+- Background: Tea green (#D0F0C0 or similar)
+- Login block: White (#FFFFFF)
+- Text: Black (#000000)
+
+Layout:
+- Login page: Centered white block on tea green background
+- Main page: Left menu, center content, top right notifications/logout
+- Responsive design for mobile/tablet/desktop
+
+GRADING ASSESSMENT
+------------------
+College Project Grade: A
+Production Ready Grade: B+
+
+Strengths:
+- Complete user flow from listing to sale
+- Smart confirmation system with timeout
+- Dispute handling with seller control
+- Buyer can withdraw interest
+- Messages auto-delete for privacy
+- Image optimization
+- Search + category filtering
+
+Areas for Production Improvement:
+- User reputation system
+- Moderation tools
+- Admin panel
+- Enhanced security features
+- Email/push notifications
