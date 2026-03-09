@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { collection, query, where, onSnapshot, addDoc, orderBy, or } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, orderBy, or, updateDoc, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface Conversation {
@@ -8,6 +8,10 @@ interface Conversation {
   userName: string;
   productId: string;
   productDescription: string;
+  interestId: string;
+  buyerAgreed: boolean;
+  sellerAgreed: boolean;
+  sold: boolean;
 }
 
 interface Message {
@@ -56,7 +60,11 @@ export default function MessagesPage() {
               userId: product.sellerId,
               userName: product.sellerName,
               productId: data.productId,
-              productDescription: product.description
+              productDescription: product.description,
+              interestId: doc.id,
+              buyerAgreed: data.buyerAgreed || false,
+              sellerAgreed: data.sellerAgreed || false,
+              sold: data.sold || false
             });
           }
         }
@@ -69,7 +77,11 @@ export default function MessagesPage() {
               userId: data.buyerId,
               userName: data.buyerName,
               productId: data.productId,
-              productDescription: product.description
+              productDescription: product.description,
+              interestId: doc.id,
+              buyerAgreed: data.buyerAgreed || false,
+              sellerAgreed: data.sellerAgreed || false,
+              sold: data.sold || false
             });
           }
         }
@@ -125,6 +137,49 @@ export default function MessagesPage() {
     }
   };
 
+  const handleAgree = async () => {
+    if (!selectedConversation) return;
+
+    const product = products.find(p => p.id === selectedConversation.productId);
+    if (!product) return;
+
+    const isBuyer = product.sellerId !== currentUser;
+    const updateData = isBuyer ? { buyerAgreed: true } : { sellerAgreed: true };
+
+    try {
+      await updateDoc(doc(db, 'interests', selectedConversation.interestId), updateData);
+
+      // Check if both agreed
+      const interestDoc = await getDoc(doc(db, 'interests', selectedConversation.interestId));
+      const interestData = interestDoc.data();
+      
+      if (interestData && ((isBuyer && interestData.sellerAgreed) || (!isBuyer && interestData.buyerAgreed))) {
+        // Both agreed - mark as sold
+        await updateDoc(doc(db, 'interests', selectedConversation.interestId), { sold: true });
+        await updateDoc(doc(db, 'products', selectedConversation.productId), { sold: true });
+        
+        // Delete other interests for this product
+        const q = query(
+          collection(db, 'interests'),
+          where('productId', '==', selectedConversation.productId)
+        );
+        const otherInterests = await getDocs(q);
+        otherInterests.forEach(async (docSnap) => {
+          if (docSnap.id !== selectedConversation.interestId) {
+            await updateDoc(doc(db, 'interests', docSnap.id), { sold: true });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error agreeing:', error);
+    }
+  };
+
+  const product = products.find(p => p.id === selectedConversation?.productId);
+  const isBuyer = product && product.sellerId !== currentUser;
+  const hasAgreed = isBuyer ? selectedConversation?.buyerAgreed : selectedConversation?.sellerAgreed;
+  const otherAgreed = isBuyer ? selectedConversation?.sellerAgreed : selectedConversation?.buyerAgreed;
+
   return (
     <div>
       <h1>Messages</h1>
@@ -141,7 +196,10 @@ export default function MessagesPage() {
                 className={`conversation-item ${selectedConversation?.userId === conv.userId && selectedConversation?.productId === conv.productId ? 'active' : ''}`}
                 onClick={() => setSelectedConversation(conv)}
               >
-                <strong>{conv.userName}</strong>
+                <div className="conversation-header">
+                  <strong>{conv.userName}</strong>
+                  {conv.sold && <span className="sold-badge">SOLD</span>}
+                </div>
                 <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
                   {conv.productDescription.substring(0, 30)}...
                 </p>
@@ -154,10 +212,13 @@ export default function MessagesPage() {
           {selectedConversation ? (
             <>
               <div className="chat-header">
-                <strong>{selectedConversation.userName}</strong>
-                <p style={{ fontSize: '12px', color: '#999' }}>
-                  Product: {selectedConversation.productDescription.substring(0, 40)}...
-                </p>
+                <div>
+                  <strong>{selectedConversation.userName}</strong>
+                  <p style={{ fontSize: '12px', color: '#999' }}>
+                    Product: {selectedConversation.productDescription.substring(0, 40)}...
+                  </p>
+                </div>
+                {selectedConversation.sold && <span className="sold-badge">SOLD</span>}
               </div>
               
               <div className="chat-messages">
@@ -166,25 +227,41 @@ export default function MessagesPage() {
                     key={msg.id} 
                     className={`message ${msg.senderId === currentUser ? 'sent' : 'received'}`}
                   >
-                    <div className="message-content">
-                      <strong>{msg.senderName}</strong>
-                      <p>{msg.text}</p>
+                    <div className="message-bubble">
+                      <div className="message-text">{msg.text}</div>
+                      <div className="message-time">
+                        {new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="chat-input">
-                <input 
-                  type="text" 
-                  placeholder="Type a message..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <button onClick={handleSendMessage}>Send</button>
-              </div>
+              {!selectedConversation.sold && (
+                <div className="chat-footer">
+                  <div className="agree-section">
+                    <button
+                      className={`agree-btn ${hasAgreed ? 'agreed' : ''}`}
+                      onClick={handleAgree}
+                      disabled={hasAgreed}
+                    >
+                      {hasAgreed ? '✓ You Agreed' : 'Agree to Sell/Buy'}
+                    </button>
+                    {otherAgreed && <span className="other-agreed">✓ Other party agreed</span>}
+                  </div>
+                  <div className="message-input-area">
+                    <input 
+                      type="text" 
+                      placeholder="Type a message..."
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    />
+                    <button onClick={handleSendMessage}>Send</button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="no-chat-selected">

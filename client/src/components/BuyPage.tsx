@@ -37,12 +37,28 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
   const handleInterested = async (productId: string) => {
     try {
       const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      // Create interest
       await addDoc(collection(db, 'interests'), {
         productId,
         buyerId: currentUser,
         buyerName: userName,
-        sellerId: product?.sellerId,
+        sellerId: product.sellerId,
+        buyerAgreed: false,
+        sellerAgreed: false,
+        sold: false,
         createdAt: Date.now(),
+      });
+
+      // Send automatic "Interested to buy" message
+      const conversationId = [currentUser, product.sellerId, productId].sort().join('_');
+      await addDoc(collection(db, 'messages'), {
+        conversationId,
+        senderId: currentUser,
+        senderName: userName,
+        text: 'Interested to buy',
+        createdAt: Date.now()
       });
       
       setShowSuccessMessage(true);
@@ -71,12 +87,13 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
     onNavigateToMessages();
   };
 
-  // Filter out seller's own products
+  // Filter out seller's own products and sold products
   const filteredProducts = products.filter(product => {
     const notOwnProduct = product.sellerId !== currentUser;
+    const notSold = !product.sold;
     const matchesSearch = product.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
-    return notOwnProduct && matchesSearch && matchesCategory;
+    return notOwnProduct && notSold && matchesSearch && matchesCategory;
   });
 
   return (
