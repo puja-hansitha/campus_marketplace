@@ -72,7 +72,9 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
 
   const deleteProduct = async (productId: string) => {
     try {
+      console.log('Deleting product:', productId);
       await deleteDoc(doc(db, 'products', productId));
+      console.log('Product deleted successfully');
     } catch (error: any) {
       console.error('Error deleting product:', error);
       alert('Failed to delete product: ' + error.message);
@@ -81,8 +83,14 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
 
   const updateProduct = async (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => {
     try {
-      await updateDoc(doc(db, 'products', productId), updates);
+      console.log('Updating product:', productId, updates);
+      await updateDoc(doc(db, 'products', productId), updates as any);
+      console.log('Product updated successfully');
     } catch (error: any) {
+      console.error('Error updating product:', error);
+      alert('Failed to update product: ' + error.message);
+    }
+  };
       console.error('Error updating product:', error);
       alert('Failed to update product: ' + error.message);
     }

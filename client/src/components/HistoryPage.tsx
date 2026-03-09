@@ -53,12 +53,23 @@ export default function HistoryPage() {
   };
 
   const handleSaveEdit = async (itemId: string) => {
+    if (!editForm.description.trim()) {
+      alert('Description cannot be empty');
+      return;
+    }
+    if (!editForm.price || parseInt(editForm.price) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+    
+    console.log('Saving edit for:', itemId, editForm);
     await updateProduct(itemId, editForm);
     setEditingItem(null);
   };
 
   const handleDelete = async (itemId: string) => {
-    if (confirm('Are you sure you want to delete this item?')) {
+    console.log('Attempting to delete:', itemId);
+    if (window.confirm('Are you sure you want to delete this item?')) {
       await deleteProduct(itemId);
     }
   };
