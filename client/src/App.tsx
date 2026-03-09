@@ -1,48 +1,42 @@
 import { useState, useEffect } from 'react';
 import './Auth.css';
 import Dashboard from './Dashboard';
-
-// Load users from localStorage
-const loadUsers = () => {
-  const saved = localStorage.getItem('campusMarketUsers');
-  return saved ? JSON.parse(saved) : {};
-};
-
-// Save users to localStorage
-const saveUsers = (users: { [email: string]: { name: string; password: string } }) => {
-  localStorage.setItem('campusMarketUsers', JSON.stringify(users));
-};
+import { auth, db } from './firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function App() {
-  const [users, setUsers] = useState<{ [email: string]: { name: string; password: string } }>(loadUsers);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState('');
   const [loggedInEmail, setLoggedInEmail] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in (remember me)
+  // Check if user is already logged in
   useEffect(() => {
-    const savedUser = localStorage.getItem('rememberedUser');
-    if (savedUser) {
-      const { name, email } = JSON.parse(savedUser);
-      setLoggedInUser(name);
-      setLoggedInEmail(email);
-      setIsLoggedIn(true);
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Get user profile from Firestore
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setLoggedInUser(userData.name);
+          setLoggedInEmail(user.email || '');
+          setIsLoggedIn(true);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
-
-  // Save users whenever they change
-  useEffect(() => {
-    saveUsers(users);
-  }, [users]);
 
   const showError = (message: string) => {
     setErrorMessage(message);
@@ -52,39 +46,25 @@ export default function App() {
     }, 3000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isLogin) {
-      // Login validation
-      const user = users[email.toLowerCase()];
-      if (!user) {
-        showError('Email or password is incorrect. Please try again.');
-        return;
+      // Login with Firebase
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setLoggedInUser(userData.name);
+          setLoggedInEmail(email);
+          setIsLoggedIn(true);
+        }
+      } catch (error: any) {
+        showError(error.code === 'auth/invalid-credential' ? 'Invalid email or password' : error.message);
       }
-      if (user.password !== password) {
-        showError('Email or password is incorrect. Please try again.');
-        return;
-      }
-      // Login successful
-      setLoggedInUser(user.name);
-      setLoggedInEmail(email.toLowerCase());
-      
-      // Save to localStorage if remember me is checked
-      if (rememberMe) {
-        localStorage.setItem('rememberedUser', JSON.stringify({
-          name: user.name,
-          email: email.toLowerCase()
-        }));
-      }
-      
-      setIsLoggedIn(true);
     } else {
-      // Register validation
-      if (users[email.toLowerCase()]) {
-        showError('Email already registered. Please login instead.');
-        return;
-      }
+      // Register with Firebase
       if (!name.trim()) {
         showError('Please enter your name');
         return;
@@ -93,29 +73,46 @@ export default function App() {
         showError('Password must be at least 6 characters long');
         return;
       }
-      // Register successful
-      const newUsers = { ...users, [email.toLowerCase()]: { name: name.trim(), password } };
-      setUsers(newUsers);
-      setSuccessMessage('Registration successful! Please login.');
-      setShowSuccessModal(true);
-      setTimeout(() => {
-        setShowSuccessModal(false);
-      }, 3000);
-      setIsLogin(true);
-      setPassword('');
+      
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Save user profile to Firestore
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          name: name.trim(),
+          email: email,
+          createdAt: Date.now()
+        });
+        
+        setSuccessMessage('Registration successful! Please login.');
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          setShowSuccessModal(false);
+        }, 3000);
+        setIsLogin(true);
+        setPassword('');
+      } catch (error: any) {
+        showError(error.code === 'auth/email-already-in-use' ? 'Email already registered' : error.message);
+      }
     }
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    setIsLoggedIn(false);
+    setEmail('');
+    setPassword('');
+    setName('');
+    setLoggedInEmail('');
+  };
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      <h2 style={{ color: 'white' }}>Loading...</h2>
+    </div>;
+  }
+
   if (isLoggedIn) {
-    return <Dashboard userName={loggedInUser} userEmail={loggedInEmail} onLogout={() => {
-      setIsLoggedIn(false);
-      setEmail('');
-      setPassword('');
-      setName('');
-      setLoggedInEmail('');
-      // Clear remember me
-      localStorage.removeItem('rememberedUser');
-    }} />;
+    return <Dashboard userName={loggedInUser} userEmail={loggedInEmail} onLogout={handleLogout} />;
   }
 
   return (
@@ -153,18 +150,6 @@ export default function App() {
               minLength={6}
             />
           </div>
-          
-          {isLogin && (
-            <div className="remember-me">
-              <input
-                type="checkbox"
-                id="remember-me"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              <label htmlFor="remember-me">Remember me</label>
-            </div>
-          )}
           
           <button type="submit" className="btn">
             {isLogin ? 'Login' : 'Register'}

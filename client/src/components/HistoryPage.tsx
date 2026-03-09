@@ -4,16 +4,16 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export default function HistoryPage() {
-  const { products, currentUser, deleteProduct, updateProduct } = useApp();
+  const { products, transactions, currentUser, deleteProduct, updateProduct } = useApp();
   const [activeTab, setActiveTab] = useState<'selling' | 'sold' | 'bought'>('selling');
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ description: '', price: '', category: '' });
   const [interests, setInterests] = useState<any[]>([]);
 
-  // Filter products by current user
-  const sellingItems = products.filter(p => p.sellerId === currentUser);
-  const soldItems: any[] = []; // Will be populated when we add sold functionality
-  const boughtItems: any[] = []; // Will be populated when we add bought functionality
+  // Filter products by current user (only active ones)
+  const sellingItems = products.filter(p => p.sellerId === currentUser && p.status !== 'sold');
+  const soldItems = transactions.filter(t => t.sellerId === currentUser);
+  const boughtItems = transactions.filter(t => t.buyerId === currentUser);
 
   // Listen to interests for seller's products
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function HistoryPage() {
         {activeTab === 'selling' && (
           <div className="items-grid">
             {sellingItems.length === 0 ? (
-              <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
                 No items currently selling
               </p>
             ) : (
@@ -158,17 +158,45 @@ export default function HistoryPage() {
 
         {activeTab === 'sold' && (
           <div className="items-grid">
-            <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
-              No items sold yet
-            </p>
+            {soldItems.length === 0 ? (
+              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+                No items sold yet
+              </p>
+            ) : (
+              soldItems.map(item => (
+                <div key={item.id} className="history-card">
+                  <img src={item.photo} alt={item.description} className="item-image-img" />
+                  <h3>{item.description.substring(0, 50)}{item.description.length > 50 ? '...' : ''}</h3>
+                  <p className="item-price">₹{formatIndianPrice(item.price)}</p>
+                  <p className="seller-name">Sold to: {item.buyerName}</p>
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                    Sold on {new Date(item.soldAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         )}
 
         {activeTab === 'bought' && (
           <div className="items-grid">
-            <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
-              No items bought yet
-            </p>
+            {boughtItems.length === 0 ? (
+              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+                No items bought yet
+              </p>
+            ) : (
+              boughtItems.map(item => (
+                <div key={item.id} className="history-card">
+                  <img src={item.photo} alt={item.description} className="item-image-img" />
+                  <h3>{item.description.substring(0, 50)}{item.description.length > 50 ? '...' : ''}</h3>
+                  <p className="item-price">₹{formatIndianPrice(item.price)}</p>
+                  <p className="seller-name">Bought from: {item.sellerName}</p>
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                    Bought on {new Date(item.soldAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

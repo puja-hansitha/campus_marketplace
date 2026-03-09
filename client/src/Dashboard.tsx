@@ -18,6 +18,18 @@ interface DashboardProps {
 export default function Dashboard({ userName, userEmail, onLogout }: DashboardProps) {
   const [currentPage, setCurrentPage] = useState('home');
   const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [navigationData, setNavigationData] = useState<any>(null);
+
+  const handleNotificationClick = () => {
+    setShowNotifications(!showNotifications);
+  };
+
+  const handleNavigateFromNotification = (page: string, data?: any) => {
+    setCurrentPage(page);
+    setNavigationData(data);
+    setShowNotifications(false);
+  };
 
   const renderContent = () => {
     switch (currentPage) {
@@ -28,11 +40,11 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
       case 'buy':
         return <BuyPage onNavigateToMessages={() => setCurrentPage('messages')} />;
       case 'messages':
-        return <MessagesPage />;
+        return <MessagesPage navigationData={navigationData} />;
       case 'history':
         return <HistoryPage />;
       case 'requests':
-        return <RequestsPage />;
+        return <RequestsPage navigationData={navigationData} />;
       default:
         return (
           <>
@@ -71,13 +83,21 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
           <div className="top-bar-right">
             <button 
               className="notification-btn"
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={handleNotificationClick}
             >
               🔔
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount}</span>
+              )}
             </button>
-            {showNotifications && (
-              <NotificationsDropdown onClose={() => setShowNotifications(false)} />
-            )}
+            {/* Always mount NotificationsDropdown to track count, but hide when closed */}
+            <div style={{ display: showNotifications ? 'block' : 'none' }}>
+              <NotificationsDropdown 
+                onClose={() => setShowNotifications(false)}
+                onCountChange={setUnreadCount}
+                onNavigate={handleNavigateFromNotification}
+              />
+            </div>
             <button onClick={onLogout} className="logout-btn">
               Logout
             </button>

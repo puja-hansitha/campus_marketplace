@@ -11,15 +11,21 @@ interface Interest {
   createdAt: number;
 }
 
-export default function RequestsPage() {
-  const { products, currentUser } = useApp();
-  const [activeTab, setActiveTab] = useState<'selling' | 'buying'>('selling');
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+export default function RequestsPage({ navigationData }: { navigationData?: any }) {
+  const { products, currentUser, markAsSold } = useApp();
+  const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [sellingInterests, setSellingInterests] = useState<Interest[]>([]);
   const [buyingInterests, setBuyingInterests] = useState<Interest[]>([]);
 
-  // Get seller's products
-  const sellerProducts = products.filter(p => p.sellerId === currentUser);
+  // Handle navigation from notification
+  useEffect(() => {
+    if (navigationData?.productId) {
+      setActiveTab('received');
+    }
+  }, [navigationData]);
+
+  // Get seller's products (only active ones)
+  const sellerProducts = products.filter(p => p.sellerId === currentUser && p.status !== 'sold');
 
   // Listen to interests for products I'm selling
   useEffect(() => {
@@ -39,7 +45,11 @@ export default function RequestsPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const interestsData: Interest[] = [];
       snapshot.forEach((doc) => {
-        interestsData.push({ id: doc.id, ...doc.data() } as Interest);
+        const data = doc.data();
+        // Only show interests that are not yet processed (no status or status is pending)
+        if (!data.status || data.status === 'pending') {
+          interestsData.push({ id: doc.id, ...data } as Interest);
+        }
       });
       setSellingInterests(interestsData);
     });
@@ -70,89 +80,90 @@ export default function RequestsPage() {
     return sellingInterests.filter(i => i.productId === productId);
   };
 
+  const handleMarkAsSold = async (productId: string, buyerId: string, buyerName: string) => {
+    if (window.confirm(`Mark this product as sold to ${buyerName}?`)) {
+      await markAsSold(productId, buyerId, buyerName);
+    }
+  };
+
+  // Group selling interests by product with product details
+  const groupedSellingRequests = sellerProducts.map(product => ({
+    product,
+    interests: getInterestedBuyers(product.id).sort((a, b) => b.createdAt - a.createdAt)
+  })).sort((a, b) => b.product.createdAt - a.product.createdAt);
+
+  // Sort buying interests by creation date
+  const sortedBuyingInterests = [...buyingInterests].sort((a, b) => b.createdAt - a.createdAt);
+
   return (
     <div>
       <h1>Requests</h1>
       
       <div className="history-tabs">
         <button 
-          className={`tab ${activeTab === 'selling' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('selling'); setSelectedProduct(null); }}
+          className={`tab ${activeTab === 'received' ? 'active' : ''}`}
+          onClick={() => setActiveTab('received')}
         >
-          Selling Requests ({sellingInterests.length})
+          Requests on Your Products ({sellingInterests.length})
         </button>
         <button 
-          className={`tab ${activeTab === 'buying' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('buying'); setSelectedProduct(null); }}
+          className={`tab ${activeTab === 'sent' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sent')}
         >
-          Buying Requests ({buyingInterests.length})
+          Your Requests on Other Products ({buyingInterests.length})
         </button>
       </div>
 
-      {activeTab === 'selling' ? (
-        <div className="requests-container">
-          <div className="products-list">
-            <h3>Your Products</h3>
-            {sellerProducts.length === 0 ? (
-              <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No products listed</p>
-            ) : (
-              sellerProducts.map(product => {
-                const interestedCount = getInterestedBuyers(product.id).length;
-                return (
-                  <div 
-                    key={product.id} 
-                    className={`request-product-item ${selectedProduct === product.id ? 'active' : ''}`}
-                    onClick={() => setSelectedProduct(product.id)}
-                  >
-                    <strong>{product.description.substring(0, 30)}</strong>
-                    {interestedCount > 0 && (
-                      <span className="request-count">{interestedCount} requests</span>
-                    )}
+      {activeTab === 'received' ? (
+        <div className="requests-received-container">
+          {groupedSellingRequests.length === 0 ? (
+            <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No products listed yet</p>
+          ) : (
+            groupedSellingRequests.map(({ product, interests }) => (
+              <div key={product.id} className="product-request-group">
+                <div className="product-header">
+                  <img src={product.photo} alt={product.description} className="product-thumb" />
+                  <div className="product-info">
+                    <h3>{product.description}</h3>
+                    <p className="product-price">₹{parseInt(product.price).toLocaleString('en-IN')}</p>
+                    <p style={{ fontSize: '12px', color: '#999' }}>
+                      Posted on {new Date(product.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="buyers-list">
-            {selectedProduct ? (
-              <>
-                <h3>Interested Buyers</h3>
-                {getInterestedBuyers(selectedProduct).length === 0 ? (
-                  <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No requests yet</p>
-                ) : (
-                  getInterestedBuyers(selectedProduct).map(interest => (
-                    <div key={interest.id} className="buyer-card">
-                      <div className="buyer-info">
-                        <strong>{interest.buyerName}</strong>
-                      </div>
-                      <div className="buyer-actions">
-                        <button className="select-btn">
-                          Sell to you
-                        </button>
-                        <button className="bought-btn">
-                          Bought by
+                  <span className="request-badge">{interests.length} {interests.length === 1 ? 'request' : 'requests'}</span>
+                </div>
+                
+                {interests.length > 0 && (
+                  <div className="buyers-list-inline">
+                    {interests.map(interest => (
+                      <div key={interest.id} className="buyer-card-inline">
+                        <div className="buyer-info">
+                          <strong>{interest.buyerName}</strong>
+                          <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                            Interested on {new Date(interest.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button 
+                          className="mark-sold-btn"
+                          onClick={() => handleMarkAsSold(product.id, interest.buyerId, interest.buyerName)}
+                        >
+                          Mark as Sold
                         </button>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
-              </>
-            ) : (
-              <div className="no-product-selected">
-                <p>Select a product to view requests</p>
               </div>
-            )}
-          </div>
+            ))
+          )}
         </div>
       ) : (
-        <div className="buying-requests-list">
-          <h3>Products You're Interested In</h3>
-          {buyingInterests.length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No buying requests yet</p>
+        <div className="requests-sent-container">
+          {sortedBuyingInterests.length === 0 ? (
+            <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No requests sent yet</p>
           ) : (
             <div className="items-grid">
-              {buyingInterests.map(interest => {
+              {sortedBuyingInterests.map(interest => {
                 const product = products.find(p => p.id === interest.productId);
                 if (!product) return null;
                 return (

@@ -74,9 +74,10 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
   // Filter out seller's own products
   const filteredProducts = products.filter(product => {
     const notOwnProduct = product.sellerId !== currentUser;
+    const isActive = product.status !== 'sold';
     const matchesSearch = product.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
-    return notOwnProduct && matchesSearch && matchesCategory;
+    return notOwnProduct && isActive && matchesSearch && matchesCategory;
   });
 
   return (
@@ -107,7 +108,7 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
 
       <div className="products-grid">
         {filteredProducts.length === 0 ? (
-          <p style={{ color: 'white', gridColumn: '1 / -1', textAlign: 'center' }}>
+          <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center' }}>
             No products available
           </p>
         ) : (

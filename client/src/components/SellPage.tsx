@@ -12,6 +12,7 @@ export default function SellPage() {
   const [displayPrice, setDisplayPrice] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,6 +76,8 @@ export default function SellPage() {
   };
 
   const handlePost = async () => {
+    if (isPosting) return; // Prevent double-click
+    
     if (!photo || !description.trim() || !category || !price) {
       setShowErrorModal(true);
       setTimeout(() => {
@@ -82,6 +85,8 @@ export default function SellPage() {
       }, 3000);
       return;
     }
+    
+    setIsPosting(true);
     
     // Add product to Firebase
     await addProduct({
@@ -110,6 +115,7 @@ export default function SellPage() {
       const fileInput = document.getElementById('photo-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
       setShowSuccessModal(false);
+      setIsPosting(false);
     }, 3000);
   };
 
@@ -164,7 +170,9 @@ export default function SellPage() {
           />
         </div>
         
-        <button className="post-btn" onClick={handlePost}>Post Product</button>
+        <button className="post-btn" onClick={handlePost} disabled={isPosting}>
+          {isPosting ? 'Posting...' : 'Post Product'}
+        </button>
       </div>
 
       {showSuccessModal && (
