@@ -1,18 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function HistoryPage() {
-  const { products, currentUser } = useApp();
+  const { products, currentUser, deleteProduct, updateProduct } = useApp();
   const [activeTab, setActiveTab] = useState<'selling' | 'sold' | 'bought'>('selling');
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ description: '', price: '', category: '' });
+  const [interests, setInterests] = useState<any[]>([]);
 
   // Filter products by current user
   const sellingItems = products.filter(p => p.sellerId === currentUser);
   const soldItems: any[] = []; // Will be populated when we add sold functionality
   const boughtItems: any[] = []; // Will be populated when we add bought functionality
 
+  // Listen to interests for seller's products
+  useEffect(() => {
+    if (sellingItems.length === 0) return;
+
+    const productIds = sellingItems.map(p => p.id);
+    if (productIds.length === 0) return;
+
+    const q = query(
+      collection(db, 'interests'),
+      where('productId', 'in', productIds.slice(0, 10))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const interestsData: any[] = [];
+      snapshot.forEach((doc) => {
+        interestsData.push({ id: doc.id, ...doc.data() });
+      });
+      setInterests(interestsData);
+    });
+
+    return () => unsubscribe();
+  }, [sellingItems.length]);
+
+  const getInterestedCount = (productId: string) => {
+    return interests.filter(i => i.productId === productId).length;
+  };
+
   const formatIndianPrice = (price: string) => {
     const num = parseInt(price);
     return num.toLocaleString('en-IN');
+  };
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item.id);
+    setEditForm({ description: item.description, price: item.price, category: item.category });
+  };
+
+  const handleSaveEdit = async (itemId: string) => {
+    await updateProduct(itemId, editForm);
+    setEditingItem(null);
+  };
+
+  const handleDelete = async (itemId: string) => {
+    if (confirm('Are you sure you want to delete this item?')) {
+      await deleteProduct(itemId);
+    }
   };
 
   return (
@@ -51,13 +99,46 @@ export default function HistoryPage() {
               sellingItems.map(item => (
                 <div key={item.id} className="history-card">
                   <img src={item.photo} alt={item.description} className="item-image-img" />
-                  <h3>{item.description.substring(0, 50)}{item.description.length > 50 ? '...' : ''}</h3>
-                  <p className="item-price">₹{formatIndianPrice(item.price)}</p>
-                  <p className="interested-count">0 interested buyers</p>
-                  <div className="item-actions">
-                    <button className="edit-btn">Edit</button>
-                    <button className="delete-btn">Delete</button>
-                  </div>
+                  {editingItem === item.id ? (
+                    <>
+                      <input 
+                        type="text" 
+                        value={editForm.description} 
+                        onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                        style={{ width: '100%', padding: '8px', marginBottom: '8px' }}
+                      />
+                      <input 
+                        type="text" 
+                        value={editForm.price} 
+                        onChange={(e) => setEditForm({...editForm, price: e.target.value})}
+                        style={{ width: '100%', padding: '8px', marginBottom: '8px' }}
+                      />
+                      <select 
+                        value={editForm.category} 
+                        onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                        style={{ width: '100%', padding: '8px', marginBottom: '8px' }}
+                      >
+                        <option value="Stationery">Stationery</option>
+                        <option value="Books">Books</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      <div className="item-actions">
+                        <button className="edit-btn" onClick={() => handleSaveEdit(item.id)}>Save</button>
+                        <button className="delete-btn" onClick={() => setEditingItem(null)}>Cancel</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3>{item.description.substring(0, 50)}{item.description.length > 50 ? '...' : ''}</h3>
+                      <p className="item-price">₹{formatIndianPrice(item.price)}</p>
+                      <p className="interested-count">{getInterestedCount(item.id)} interested buyers</p>
+                      <div className="item-actions">
+                        <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
+                        <button className="delete-btn" onClick={() => handleDelete(item.id)}>Delete</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))
             )}

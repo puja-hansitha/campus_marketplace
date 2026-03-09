@@ -26,7 +26,7 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
       case 'sell':
         return <SellPage />;
       case 'buy':
-        return <BuyPage />;
+        return <BuyPage onNavigateToMessages={() => setCurrentPage('messages')} />;
       case 'messages':
         return <MessagesPage />;
       case 'history':

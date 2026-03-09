@@ -1,14 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export default function BuyPage() {
-  const { products, currentUser } = useApp();
+export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages: () => void }) {
+  const { products, currentUser, userName } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
+  const [interestedProducts, setInterestedProducts] = useState<Map<string, string>>(new Map());
+
+  // Load existing interests for current user
+  useEffect(() => {
+    const q = query(
+      collection(db, 'interests'),
+      where('buyerId', '==', currentUser)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const interestsMap = new Map<string, string>();
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        interestsMap.set(data.productId, doc.id);
+      });
+      setInterestedProducts(interestsMap);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   const formatIndianPrice = (price: string) => {
     const num = parseInt(price);
@@ -17,15 +36,15 @@ export default function BuyPage() {
 
   const handleInterested = async (productId: string) => {
     try {
-      // Save interest to Firebase
+      const product = products.find(p => p.id === productId);
       await addDoc(collection(db, 'interests'), {
         productId,
         buyerId: currentUser,
-        buyerName: products.find(p => p.id === productId)?.sellerName || currentUser,
+        buyerName: userName,
+        sellerId: product?.sellerId,
         createdAt: Date.now(),
       });
       
-      setInterestedProducts(prev => new Set(prev).add(productId));
       setShowSuccessMessage(true);
       setTimeout(() => {
         setShowSuccessMessage(false);
@@ -34,6 +53,22 @@ export default function BuyPage() {
       console.error('Error sending interest:', error);
       alert('Failed to send request. Please try again.');
     }
+  };
+
+  const handleRemoveInterest = async (productId: string) => {
+    try {
+      const interestId = interestedProducts.get(productId);
+      if (interestId) {
+        await deleteDoc(doc(db, 'interests', interestId));
+      }
+    } catch (error) {
+      console.error('Error removing interest:', error);
+      alert('Failed to remove interest. Please try again.');
+    }
+  };
+
+  const handleMessageSeller = () => {
+    onNavigateToMessages();
   };
 
   // Filter out seller's own products
@@ -85,13 +120,29 @@ export default function BuyPage() {
                 <p className="product-description">{product.description}</p>
                 <p className="product-price">₹{formatIndianPrice(product.price)}</p>
                 <p className="seller-name">Seller: {product.sellerName}</p>
-                <button 
-                  className={`interested-btn ${isInterested ? 'disabled' : ''}`}
-                  onClick={() => !isInterested && handleInterested(product.id)}
-                  disabled={isInterested}
-                >
-                  {isInterested ? '✓ Request Sent' : 'Interested to Buy'}
-                </button>
+                {isInterested ? (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      className="remove-interest-btn"
+                      onClick={() => handleRemoveInterest(product.id)}
+                    >
+                      Remove Interest
+                    </button>
+                    <button 
+                      className="message-seller-btn"
+                      onClick={handleMessageSeller}
+                    >
+                      Message Seller
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    className="interested-btn"
+                    onClick={() => handleInterested(product.id)}
+                  >
+                    Interested to Buy
+                  </button>
+                )}
               </div>
             );
           })

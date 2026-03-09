@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface Product {
@@ -17,6 +17,8 @@ interface Product {
 interface AppContextType {
   products: Product[];
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
+  deleteProduct: (productId: string) => void;
+  updateProduct: (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => void;
   currentUser: string;
   userName: string;
   userPhoto: string | null;
@@ -68,6 +70,24 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
     }
   };
 
+  const deleteProduct = async (productId: string) => {
+    try {
+      await deleteDoc(doc(db, 'products', productId));
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
+      alert('Failed to delete product: ' + error.message);
+    }
+  };
+
+  const updateProduct = async (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => {
+    try {
+      await updateDoc(doc(db, 'products', productId), updates);
+    } catch (error: any) {
+      console.error('Error updating product:', error);
+      alert('Failed to update product: ' + error.message);
+    }
+  };
+
   const updateUserProfile = (name: string, photo: string | null) => {
     setUserName(name);
     setUserPhoto(photo);
@@ -76,7 +96,9 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
   return (
     <AppContext.Provider value={{ 
       products, 
-      addProduct, 
+      addProduct,
+      deleteProduct,
+      updateProduct,
       currentUser: userEmail,
       userName,
       userPhoto,
