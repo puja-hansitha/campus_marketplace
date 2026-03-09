@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
-import { cleanupAllInterests } from '../cleanupInterests';
+import { cleanupAllInterests, cleanupDuplicateProducts } from '../cleanupInterests';
 
 export default function ProfilePage() {
   const { userName: currentUserName, userPhoto: currentUserPhoto, updateUserProfile } = useApp();
@@ -111,17 +111,33 @@ export default function ProfilePage() {
         <button className="save-btn" onClick={handleSave}>Save Changes</button>
 
         <div style={{ marginTop: '30px', padding: '20px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-          <h3 style={{ color: 'white', marginBottom: '10px' }}>Admin: Clear All Requests</h3>
-          <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '10px' }}>
-            This will delete all buyer requests from the database. Use this to fix duplicate/wrong data.
-          </p>
-          <button 
-            className="delete-btn" 
-            onClick={cleanupAllInterests}
-            style={{ width: 'auto', padding: '10px 20px' }}
-          >
-            Clear All Requests
-          </button>
+          <h3 style={{ color: 'white', marginBottom: '10px' }}>Admin: Cleanup Tools</h3>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '10px' }}>
+              Remove duplicate products (keeps one copy of each)
+            </p>
+            <button 
+              className="delete-btn" 
+              onClick={cleanupDuplicateProducts}
+              style={{ width: 'auto', padding: '10px 20px' }}
+            >
+              Remove Duplicate Products
+            </button>
+          </div>
+
+          <div>
+            <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '10px' }}>
+              Clear all buyer requests (fixes wrong buyer names)
+            </p>
+            <button 
+              className="delete-btn" 
+              onClick={cleanupAllInterests}
+              style={{ width: 'auto', padding: '10px 20px' }}
+            >
+              Clear All Requests
+            </button>
+          </div>
         </div>
       </div>
 
