@@ -899,6 +899,15 @@
   margin-bottom: 20px;
 }
 
+.buying-requests-list {
+  max-width: 1200px;
+}
+
+.buying-requests-list h3 {
+  color: white;
+  margin-bottom: 20px;
+}
+
 .buyer-card {
   background: #f9f9f9;
   padding: 20px;
