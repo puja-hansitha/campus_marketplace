@@ -24,7 +24,13 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Get user profile from Firestore
+        // If signed in via Google, enforce college email restriction
+        const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
+        if (isGoogleUser && !user.email?.endsWith('@bvrithyderabad.edu.in')) {
+          await signOut(auth);
+          setLoading(false);
+          return;
+        }
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
