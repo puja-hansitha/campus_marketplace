@@ -100,9 +100,16 @@ export default function App() {
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ hd: 'bvrithyderabad.edu.in' });
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      // Save/update user profile in Firestore
+
+      if (!user.email?.endsWith('@bvrithyderabad.edu.in')) {
+        await signOut(auth);
+        showError('Only @bvrithyderabad.edu.in email addresses are allowed.');
+        return;
+      }
+
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
