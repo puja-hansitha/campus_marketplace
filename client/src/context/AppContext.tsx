@@ -160,9 +160,25 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
       const interestsSnapshot = await getDocs(interestsQuery);
       const updatePromises = interestsSnapshot.docs.map(docSnap => {
         const isWinner = docSnap.data().buyerId === buyerId;
-        return updateDoc(doc(db, 'interests', docSnap.id), {
-          status: isWinner ? 'accepted' : 'declined'
-        });
+        const promises: Promise<any>[] = [
+          updateDoc(doc(db, 'interests', docSnap.id), {
+            status: isWinner ? 'accepted' : 'declined'
+          })
+        ];
+        // Notify declined buyers
+        if (!isWinner) {
+          promises.push(
+            addDoc(collection(db, 'notifications'), {
+              type: 'sold',
+              recipientId: docSnap.data().buyerId,
+              message: `Sorry, "${product.description.substring(0, 40)}" was sold to someone else.`,
+              productId,
+              isRead: false,
+              createdAt: Date.now(),
+            })
+          );
+        }
+        return Promise.all(promises);
       });
       await Promise.all(updatePromises);
     } catch (error: any) {
