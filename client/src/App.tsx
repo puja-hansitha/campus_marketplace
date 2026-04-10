@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import './Auth.css';
 import Dashboard from './Dashboard';
 import { auth, db } from './firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function App() {
@@ -97,6 +97,29 @@ export default function App() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      // Save/update user profile in Firestore
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          name: user.displayName || user.email,
+          email: user.email,
+          createdAt: Date.now()
+        });
+      }
+      setLoggedInUser(userDoc.exists() ? userDoc.data().name : (user.displayName || user.email || ''));
+      setLoggedInEmail(user.email || '');
+      setIsLoggedIn(true);
+    } catch (error: any) {
+      showError(error.message);
+    }
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
     setIsLoggedIn(false);
@@ -176,6 +199,21 @@ export default function App() {
             {isLogin ? 'Register' : 'Login'}
           </button>
         </div>
+
+        {isLogin && (
+          <>
+            <div style={{ textAlign: 'center', margin: '20px 0', color: '#999', fontSize: '14px' }}>— or —</div>
+            <button onClick={handleGoogleLogin} style={{
+              width: '100%', padding: '14px', border: '2px solid #e0e0e0', borderRadius: '10px',
+              background: 'white', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              transition: 'all 0.3s', color: '#333'
+            }}>
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google" />
+              Continue with Google
+            </button>
+          </>
+        )}
       </div>
 
       {showErrorModal && (
