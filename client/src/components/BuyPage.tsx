@@ -118,7 +118,7 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
 
       <div className="products-grid">
         {filteredProducts.length === 0 ? (
-          <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center' }}>
+          <p style={{ color: '#fff', gridColumn: '1 / -1', textAlign: 'center' }}>
             No products available
           </p>
         ) : (

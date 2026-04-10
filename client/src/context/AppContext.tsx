@@ -146,7 +146,6 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
       const product = products.find(p => p.id === productId);
       if (!product) throw new Error('Product not found');
 
-      // Create transaction record
       await addDoc(collection(db, 'transactions'), {
         productId,
         sellerId: product.sellerId,
@@ -159,17 +158,26 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
         soldAt: Date.now(),
       });
 
-      // Mark product as sold
       await updateDoc(doc(db, 'products', productId), { status: 'sold' });
 
-      // Don't delete interests - keep them for messaging history
-      // Just mark the winning buyer's interest as 'accepted'
+      // Notify the buyer
+      await addDoc(collection(db, 'notifications'), {
+        type: 'sold',
+        recipientId: buyerId,
+        message: `🎉 Your purchase of "${product.description.substring(0, 40)}" has been confirmed by the seller!`,
+        productId,
+        userId: product.sellerId,
+        userName: product.sellerName,
+        isRead: false,
+        createdAt: Date.now(),
+      });
+
       const interestsQuery = query(collection(db, 'interests'), where('productId', '==', productId));
       const interestsSnapshot = await getDocs(interestsQuery);
       const updatePromises = interestsSnapshot.docs.map(docSnap => {
         const isWinner = docSnap.data().buyerId === buyerId;
-        return updateDoc(doc(db, 'interests', docSnap.id), { 
-          status: isWinner ? 'accepted' : 'declined' 
+        return updateDoc(doc(db, 'interests', docSnap.id), {
+          status: isWinner ? 'accepted' : 'declined'
         });
       });
       await Promise.all(updatePromises);

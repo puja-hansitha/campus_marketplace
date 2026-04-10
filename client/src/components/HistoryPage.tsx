@@ -103,7 +103,7 @@ export default function HistoryPage() {
         {activeTab === 'selling' && (
           <div className="items-grid">
             {sellingItems.length === 0 ? (
-              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+              <p style={{ color: '#fff', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
                 No items currently selling
               </p>
             ) : (
@@ -159,7 +159,7 @@ export default function HistoryPage() {
         {activeTab === 'sold' && (
           <div className="items-grid">
             {soldItems.length === 0 ? (
-              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+              <p style={{ color: '#fff', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
                 No items sold yet
               </p>
             ) : (
@@ -181,7 +181,7 @@ export default function HistoryPage() {
         {activeTab === 'bought' && (
           <div className="items-grid">
             {boughtItems.length === 0 ? (
-              <p style={{ color: '#333', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
+              <p style={{ color: '#fff', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>
                 No items bought yet
               </p>
             ) : (

@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 
 export default function SellPage() {
-  const { addProduct, currentUser } = useApp();
+  const { addProduct, currentUser, userName } = useApp();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [description, setDescription] = useState('');
@@ -91,7 +91,7 @@ export default function SellPage() {
     // Add product to Firebase
     await addProduct({
       sellerId: currentUser,
-      sellerName: currentUser,
+      sellerName: userName,
       photo: photoPreview!,
       description: description.trim(),
       category,
