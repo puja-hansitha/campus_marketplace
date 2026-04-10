@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
 
 export default function SellPage() {
   const { addProduct, currentUser, userName } = useApp();
@@ -52,10 +50,7 @@ export default function SellPage() {
     }
     setIsPosting(true);
     try {
-      const storageRef = ref(storage, `products/${currentUser}/${Date.now()}_${photo.name}`);
-      await uploadBytes(storageRef, photo);
-      const photoURL = await getDownloadURL(storageRef);
-      await addProduct({ sellerId: currentUser, sellerName: userName, photo: photoURL, description: description.trim(), category, price });
+      await addProduct({ sellerId: currentUser, sellerName: userName, photo: photoPreview!, description: description.trim(), category, price });
       triggerConfetti();
       setShowSuccessModal(true);
       setTimeout(() => {
@@ -98,7 +93,7 @@ export default function SellPage() {
           <input type="text" placeholder="Enter price" value={displayPrice} onChange={handlePriceChange} />
         </div>
         <button className="post-btn" onClick={handlePost} disabled={isPosting}>
-          {isPosting ? 'Uploading...' : 'Post Product'}
+          {isPosting ? 'Posting...' : 'Post Product'}
         </button>
       </div>
 
