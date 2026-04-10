@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './Auth.css';
 import Dashboard from './Dashboard';
 import { auth, db } from './firebase';
@@ -12,12 +12,16 @@ export default function App() {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const handledByGoogle = useRef(false);
 
-  // Check if user is already logged in
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // If signed in via Google, enforce college email restriction
+        // Already handled by handleGoogleLogin — skip double Firestore read
+        if (handledByGoogle.current) {
+          setLoading(false);
+          return;
+        }
         const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
         if (isGoogleUser && !user.email?.endsWith('@bvrithyderabad.edu.in')) {
           await signOut(auth);
@@ -26,24 +30,20 @@ export default function App() {
         }
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setLoggedInUser(userData.name);
+          setLoggedInUser(userDoc.data().name);
           setLoggedInEmail(user.email || '');
           setIsLoggedIn(true);
         }
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   const showError = (message: string) => {
     setErrorMessage(message);
     setShowErrorModal(true);
-    setTimeout(() => {
-      setShowErrorModal(false);
-    }, 3000);
+    setTimeout(() => setShowErrorModal(false), 3000);
   };
 
   const handleGoogleLogin = async () => {
@@ -67,6 +67,7 @@ export default function App() {
           createdAt: Date.now()
         });
       }
+      handledByGoogle.current = true;
       setLoggedInUser(userDoc.exists() ? userDoc.data().name : (user.displayName || user.email || ''));
       setLoggedInEmail(user.email || '');
       setIsLoggedIn(true);
