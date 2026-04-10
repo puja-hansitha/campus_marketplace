@@ -279,14 +279,26 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
               </div>
 
               <div className="chat-input">
-                <input 
-                  type="text" 
-                  placeholder="Type a message..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
-                />
-                <button onClick={handleSendMessage}>Send</button>
+                {(() => {
+                  const product = products.find(p => p.id === selectedConversation.productId);
+                  const isSold = product?.status === 'sold';
+                  return isSold ? (
+                    <div style={{ flex: 1, textAlign: 'center', padding: '12px', color: '#f5576c', fontWeight: 600, fontSize: '14px' }}>
+                      🚫 This product has already been sold. No further messages can be sent.
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="Type a message..."
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
+                      />
+                      <button onClick={handleSendMessage}>Send</button>
+                    </>
+                  );
+                })()}
               </div>
             </>
           ) : (
