@@ -29,7 +29,7 @@ export default function NotificationsDropdown({ onClose, onCountChange, onNaviga
   useEffect(() => {
     const unreadCount = notifications.filter(n => !n.isRead).length;
     onCountChange(unreadCount);
-  }, [notifications, onCountChange]);
+  }, [notifications]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load notifications from Firestore
   useEffect(() => {

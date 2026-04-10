@@ -271,7 +271,7 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
                   placeholder="Type a message..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
                 />
                 <button onClick={handleSendMessage}>Send</button>
               </div>

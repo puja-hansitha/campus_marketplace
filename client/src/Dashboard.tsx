@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import './Dashboard.css';
 import SellPage from './components/SellPage';
 import BuyPage from './components/BuyPage';
@@ -25,11 +25,15 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
     setShowNotifications(!showNotifications);
   };
 
-  const handleNavigateFromNotification = (page: string, data?: any) => {
+  const handleNavigateFromNotification = useCallback((page: string, data?: any) => {
     setCurrentPage(page);
     setNavigationData(data);
     setShowNotifications(false);
-  };
+  }, []);
+
+  const handleCountChange = useCallback((count: number) => {
+    setUnreadCount(count);
+  }, []);
 
   const renderContent = () => {
     switch (currentPage) {
@@ -95,7 +99,7 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
             <div style={{ display: showNotifications ? 'block' : 'none' }}>
               <NotificationsDropdown 
                 onClose={() => setShowNotifications(false)}
-                onCountChange={setUnreadCount}
+                onCountChange={handleCountChange}
                 onNavigate={handleNavigateFromNotification}
               />
             </div>
