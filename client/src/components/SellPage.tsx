@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 
 export default function SellPage() {
   const { addProduct, currentUser, userName } = useApp();
@@ -17,106 +19,55 @@ export default function SellPage() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
-        return;
-      }
+      if (file.size > 5 * 1024 * 1024) { alert('File size must be less than 5MB'); return; }
       setPhoto(file);
       const reader = new FileReader();
-      reader.onload = (event) => {
-        setPhotoPreview(event.target?.result as string);
-      };
+      reader.onload = (event) => setPhotoPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const formatIndianNumber = (value: string) => {
-    // Remove all non-digits
-    const num = value.replace(/\D/g, '');
-    if (!num) return '';
-    
-    // Convert to Indian format
-    const formatted = parseInt(num).toLocaleString('en-IN');
-    return formatted;
-  };
-
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Remove all non-digits
-    const numericValue = value.replace(/\D/g, '');
+    const numericValue = e.target.value.replace(/\D/g, '');
     setPrice(numericValue);
-    setDisplayPrice(formatIndianNumber(numericValue));
+    setDisplayPrice(numericValue ? parseInt(numericValue).toLocaleString('en-IN') : '');
   };
 
   const triggerConfetti = () => {
-    const duration = 3000;
-    const end = Date.now() + duration;
-
+    const end = Date.now() + 3000;
     const frame = () => {
-      confetti({
-        particleCount: 5,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
-        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
-      });
-      confetti({
-        particleCount: 5,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
+      confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'] });
+      confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'] });
+      if (Date.now() < end) requestAnimationFrame(frame);
     };
     frame();
   };
 
   const handlePost = async () => {
-    if (isPosting) return; // Prevent double-click
-    
+    if (isPosting) return;
     if (!photo || !description.trim() || !category || !price) {
       setShowErrorModal(true);
-      setTimeout(() => {
-        setShowErrorModal(false);
-      }, 3000);
+      setTimeout(() => setShowErrorModal(false), 3000);
       return;
     }
-    
     setIsPosting(true);
-    
-    // Add product to Firebase
-    await addProduct({
-      sellerId: currentUser,
-      sellerName: userName,
-      photo: photoPreview!,
-      description: description.trim(),
-      category,
-      price,
-    });
-    
-    // Trigger confetti
-    triggerConfetti();
-    
-    // Show success modal
-    setShowSuccessModal(true);
-    
-    // Reset form after 3 seconds
-    setTimeout(() => {
-      setPhoto(null);
-      setPhotoPreview(null);
-      setDescription('');
-      setCategory('');
-      setPrice('');
-      setDisplayPrice('');
-      const fileInput = document.getElementById('photo-input') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      setShowSuccessModal(false);
+    try {
+      const storageRef = ref(storage, `products/${currentUser}/${Date.now()}_${photo.name}`);
+      await uploadBytes(storageRef, photo);
+      const photoURL = await getDownloadURL(storageRef);
+      await addProduct({ sellerId: currentUser, sellerName: userName, photo: photoURL, description: description.trim(), category, price });
+      triggerConfetti();
+      setShowSuccessModal(true);
+      setTimeout(() => {
+        setPhoto(null); setPhotoPreview(null); setDescription(''); setCategory(''); setPrice(''); setDisplayPrice('');
+        const fileInput = document.getElementById('photo-input') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        setShowSuccessModal(false); setIsPosting(false);
+      }, 3000);
+    } catch (error: any) {
+      alert('Failed to post product: ' + error.message);
       setIsPosting(false);
-    }, 3000);
+    }
   };
 
   return (
@@ -124,31 +75,14 @@ export default function SellPage() {
       <h1>Sell Product</h1>
       <div className="sell-form">
         <div className="photo-upload">
-          <input 
-            type="file" 
-            id="photo-input" 
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            style={{ display: 'none' }}
-            onChange={handlePhotoChange}
-          />
-          <label htmlFor="photo-input" className="photo-upload-btn">
-            📷 Upload Photo
-          </label>
-          {photoPreview && (
-            <img src={photoPreview} alt="Preview" className="photo-preview" />
-          )}
+          <input type="file" id="photo-input" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={handlePhotoChange} />
+          <label htmlFor="photo-input" className="photo-upload-btn">📷 Upload Photo</label>
+          {photoPreview && <img src={photoPreview} alt="Preview" className="photo-preview" />}
         </div>
-        
         <div className="form-group">
           <label>Description</label>
-          <textarea 
-            placeholder="Describe your product..." 
-            rows={4}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+          <textarea placeholder="Describe your product..." rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
-        
         <div className="form-group">
           <label>Category</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -159,19 +93,12 @@ export default function SellPage() {
             <option value="other">Other</option>
           </select>
         </div>
-        
         <div className="form-group">
           <label>Price (₹)</label>
-          <input 
-            type="text" 
-            placeholder="Enter price"
-            value={displayPrice}
-            onChange={handlePriceChange}
-          />
+          <input type="text" placeholder="Enter price" value={displayPrice} onChange={handlePriceChange} />
         </div>
-        
         <button className="post-btn" onClick={handlePost} disabled={isPosting}>
-          {isPosting ? 'Posting...' : 'Post Product'}
+          {isPosting ? 'Uploading...' : 'Post Product'}
         </button>
       </div>
 
@@ -184,7 +111,6 @@ export default function SellPage() {
           </div>
         </div>
       )}
-
       {showErrorModal && (
         <div className="error-modal-overlay">
           <div className="error-modal">
