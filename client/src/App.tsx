@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import './Auth.css';
 import Dashboard from './Dashboard';
 import { auth, db } from './firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function App() {
@@ -18,6 +18,7 @@ export default function App() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -50,8 +51,8 @@ export default function App() {
     e.preventDefault();
     
     if (isLogin) {
-      // Login with Firebase
       try {
+        await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
@@ -151,6 +152,17 @@ export default function App() {
             />
           </div>
           
+          {isLogin && (
+            <div className="remember-me">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <label htmlFor="rememberMe">Remember me</label>
+            </div>
+          )}
           <button type="submit" className="btn">
             {isLogin ? 'Login' : 'Register'}
           </button>
