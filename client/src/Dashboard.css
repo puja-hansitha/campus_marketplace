@@ -504,7 +504,8 @@
   display: grid;
   gap: 0;
   max-width: 1400px;
-  height: 600px;
+  height: calc(100vh - 220px);
+  min-height: 500px;
   background: white;
   border-radius: 15px;
   overflow: hidden;
@@ -562,12 +563,22 @@
   border-left: 4px solid #667eea;
 }
 
-.product-message-item strong,
 .buyer-message-item strong {
   color: #333;
   font-size: 15px;
   display: block;
   margin-bottom: 4px;
+}
+
+.buyer-message-item {
+  padding: 15px 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .product-message-item .unread-badge {
