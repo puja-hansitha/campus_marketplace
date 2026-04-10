@@ -67,7 +67,11 @@ export default function RequestsPage({ navigationData, onNavigateToMessages }: {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const interestsData: Interest[] = [];
       snapshot.forEach((doc) => {
-        interestsData.push({ id: doc.id, ...doc.data() } as Interest);
+        const data = doc.data();
+        // Only show pending interests (not declined/accepted)
+        if (!data.status || data.status === 'pending') {
+          interestsData.push({ id: doc.id, ...data } as Interest);
+        }
       });
       setBuyingInterests(interestsData);
     });
@@ -92,11 +96,11 @@ export default function RequestsPage({ navigationData, onNavigateToMessages }: {
     }
   };
 
-  // Group selling interests by product with product details
+  // Group selling interests by product with product details - only show products with pending interests
   const groupedSellingRequests = sellerProducts.map(product => ({
     product,
     interests: getInterestedBuyers(product.id).sort((a, b) => b.createdAt - a.createdAt)
-  })).sort((a, b) => b.product.createdAt - a.product.createdAt);
+  })).filter(({ interests }) => interests.length > 0).sort((a, b) => b.product.createdAt - a.product.createdAt);
 
   // Sort buying interests by creation date
   const sortedBuyingInterests = [...buyingInterests].sort((a, b) => b.createdAt - a.createdAt);
