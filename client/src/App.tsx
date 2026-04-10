@@ -58,19 +58,22 @@ export default function App() {
         return;
       }
 
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) {
-        await setDoc(userRef, {
-          name: user.displayName || user.email,
-          email: user.email,
-          createdAt: Date.now()
-        });
-      }
+      // Log in instantly using Google profile data
       handledByGoogle.current = true;
-      setLoggedInUser(userDoc.exists() ? userDoc.data().name : (user.displayName || user.email || ''));
+      setLoggedInUser(user.displayName || user.email || '');
       setLoggedInEmail(user.email || '');
       setIsLoggedIn(true);
+
+      // Save to Firestore in background (non-blocking)
+      const userRef = doc(db, 'users', user.uid);
+      getDoc(userRef).then(userDoc => {
+        if (!userDoc.exists()) {
+          setDoc(userRef, { name: user.displayName || user.email, email: user.email, createdAt: Date.now() });
+        } else {
+          // Use stored name if available (user may have updated it)
+          setLoggedInUser(userDoc.data().name);
+        }
+      });
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user') showError(error.message);
     }
