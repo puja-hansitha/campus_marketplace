@@ -24,10 +24,20 @@
   box-shadow: 0 4px 30px rgba(0,0,0,0.1);
   border-bottom: 1px solid rgba(255,255,255,0.3);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 0 30px;
   z-index: 100;
+}
+
+.top-bar-brand {
+  font-size: 20px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
 }
 
 .top-bar-right {
@@ -63,7 +73,7 @@
   top: -2px;
   right: -2px;
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #333;
+  color: #ffffff;
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -78,7 +88,7 @@
 .logout-btn {
   padding: 10px 24px;
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 25px;
   font-size: 14px;
@@ -144,15 +154,15 @@
 }
 
 .main-content h1 {
-  color: #333;
+  color: #ffffff;
   font-size: 48px;
   margin-bottom: 15px;
   font-weight: 700;
-  text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 
-.main-content p {
-  color: #333;
+.main-content > p {
+  color: rgba(255,255,255,0.9);
   font-size: 18px;
   margin-bottom: 50px;
 }
@@ -239,7 +249,7 @@
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #333;
+  color: #ffffff;
 }
 
 .hero-btn:hover {
@@ -273,7 +283,7 @@
   display: inline-block;
   padding: 15px 40px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #333;
+  color: #ffffff;
   border-radius: 50px;
   cursor: pointer;
   font-size: 16px;
@@ -324,7 +334,7 @@
   width: 100%;
   padding: 16px;
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 50px;
   font-size: 18px;
@@ -442,7 +452,7 @@
   width: 100%;
   padding: 10px;
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -459,7 +469,7 @@
   flex: 1;
   padding: 10px;
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -476,7 +486,7 @@
   flex: 1;
   padding: 10px;
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -783,7 +793,7 @@
 
 .unread-badge {
   background: #f5576c;
-  color: #333;
+  color: #ffffff;
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -1055,9 +1065,9 @@
 
 .tab {
   padding: 12px 30px;
-  background: rgba(255,255,255,0.2);
-  color: #333;
-  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  border: 2px solid rgba(255,255,255,0.4);
   border-radius: 25px;
   font-weight: 600;
   cursor: pointer;
@@ -1065,13 +1075,13 @@
 }
 
 .tab:hover {
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.25);
 }
 
 .tab.active {
   background: white;
   color: #667eea;
-  border-color: #333;
+  border-color: white;
 }
 
 .history-content {
@@ -1200,7 +1210,7 @@
   display: inline-block;
   padding: 10px 25px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #333;
+  color: #ffffff;
   border-radius: 25px;
   cursor: pointer;
   font-weight: 600;
@@ -1216,7 +1226,7 @@
   width: 100%;
   padding: 14px;
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   border-radius: 25px;
   font-size: 16px;
@@ -1278,7 +1288,7 @@
 
 .request-badge {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #333;
+  color: #ffffff;
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 14px;
@@ -1307,7 +1317,7 @@
 
 .mark-sold-btn {
   background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%);
-  color: #333;
+  color: #ffffff;
   border: none;
   padding: 10px 20px;
   border-radius: 8px;
@@ -1366,7 +1376,7 @@
 
 .request-count {
   background: #667eea;
-  color: #333;
+  color: #ffffff;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
@@ -1795,7 +1805,7 @@
   bottom: 30px;
   right: 30px;
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: #333;
+  color: #ffffff;
   padding: 16px 24px;
   border-radius: 50px;
   box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);

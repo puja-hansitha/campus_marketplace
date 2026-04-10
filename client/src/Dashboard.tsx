@@ -80,6 +80,7 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
       <div className="dashboard">
         {/* Top bar with notifications and logout */}
         <div className="top-bar">
+          <div className="top-bar-brand">🎓 Campus Marketplace</div>
           <div className="top-bar-right">
             <button 
               className="notification-btn"
@@ -106,48 +107,13 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
 
         {/* Left menu */}
         <div className="left-menu">
-          <button 
-            className={`menu-item ${currentPage === 'home' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('home')}
-          >
-            Home
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('profile')}
-          >
-            Profile
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'sell' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('sell')}
-          >
-            Sell
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'buy' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('buy')}
-          >
-            Buy
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'requests' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('requests')}
-          >
-            Requests
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'messages' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('messages')}
-          >
-            Messages
-          </button>
-          <button 
-            className={`menu-item ${currentPage === 'history' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('history')}
-          >
-            History
-          </button>
+          <button className={`menu-item ${currentPage === 'home' ? 'active' : ''}`} onClick={() => setCurrentPage('home')}>🏠 Home</button>
+          <button className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`} onClick={() => setCurrentPage('profile')}>👤 Profile</button>
+          <button className={`menu-item ${currentPage === 'sell' ? 'active' : ''}`} onClick={() => setCurrentPage('sell')}>📦 Sell</button>
+          <button className={`menu-item ${currentPage === 'buy' ? 'active' : ''}`} onClick={() => setCurrentPage('buy')}>🛒 Buy</button>
+          <button className={`menu-item ${currentPage === 'requests' ? 'active' : ''}`} onClick={() => setCurrentPage('requests')}>📋 Requests</button>
+          <button className={`menu-item ${currentPage === 'messages' ? 'active' : ''}`} onClick={() => setCurrentPage('messages')}>💬 Messages</button>
+          <button className={`menu-item ${currentPage === 'history' ? 'active' : ''}`} onClick={() => setCurrentPage('history')}>📊 History</button>
         </div>
 
         {/* Main content */}
