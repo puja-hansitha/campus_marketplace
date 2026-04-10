@@ -44,11 +44,21 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
         sellerId: product?.sellerId,
         createdAt: Date.now(),
       });
-      
+
+      // Notify the seller
+      await addDoc(collection(db, 'notifications'), {
+        type: 'interest',
+        recipientId: product?.sellerId,
+        message: `${userName} is interested in buying your item: ${product?.description.substring(0, 40)}`,
+        productId,
+        userId: currentUser,
+        userName,
+        isRead: false,
+        createdAt: Date.now(),
+      });
+
       setShowSuccessMessage(true);
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 3000);
+      setTimeout(() => setShowSuccessMessage(false), 3000);
     } catch (error) {
       console.error('Error sending interest:', error);
       alert('Failed to send request. Please try again.');

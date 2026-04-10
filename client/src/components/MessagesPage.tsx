@@ -136,6 +136,18 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
         text,
         createdAt: Date.now()
       });
+
+      // Notify the recipient
+      await addDoc(collection(db, 'notifications'), {
+        type: 'message',
+        recipientId: selectedConversation.userId,
+        message: `${userName}: ${text.substring(0, 60)}`,
+        productId: selectedConversation.productId,
+        userId: currentUser,
+        userName,
+        isRead: false,
+        createdAt: Date.now(),
+      });
     } catch (error: any) {
       console.error('Error sending message:', error);
       setMessageText(text); // restore on failure
