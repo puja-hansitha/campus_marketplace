@@ -154,78 +154,22 @@ export default function App() {
   return (
     <div className="auth-container">
       <div className="auth-box">
-        <h2>{isLogin ? 'Login' : 'Register'}</h2>
-        <form onSubmit={handleSubmit}>
-          {!isLogin && (
-            <div className="form-group">
-              <label>Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-          
-          {isLogin && (
-            <div className="remember-me">
-              <input
-                type="checkbox"
-                id="rememberMe"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              <label htmlFor="rememberMe">Remember me</label>
-            </div>
-          )}
-          <button type="submit" className="btn">
-            {isLogin ? 'Login' : 'Register'}
-          </button>
-        </form>
-        <div className="toggle-auth">
-          <span>{isLogin ? "Don't have an account? " : 'Already have an account? '}</span>
-          <button onClick={() => {
-            setIsLogin(!isLogin);
-            setPassword('');
-          }}>
-            {isLogin ? 'Register' : 'Login'}
-          </button>
-        </div>
-
-        {isLogin && (
-          <>
-            <div style={{ textAlign: 'center', margin: '20px 0', color: '#999', fontSize: '14px' }}>— or —</div>
-            <button onClick={handleGoogleLogin} style={{
-              width: '100%', padding: '14px', border: '2px solid #e0e0e0', borderRadius: '10px',
-              background: 'white', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-              transition: 'all 0.3s', color: '#333'
-            }}>
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google" />
-              Continue with Google
-            </button>
-          </>
-        )}
+        <h2>Campus Marketplace</h2>
+        <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px', fontSize: '15px' }}>
+          Sign in with your college account to continue
+        </p>
+        <button onClick={handleGoogleLogin} style={{
+          width: '100%', padding: '14px', border: '2px solid #e0e0e0', borderRadius: '10px',
+          background: 'white', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+          transition: 'all 0.3s', color: '#333'
+        }}>
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google" />
+          Continue with Google
+        </button>
+        <p style={{ textAlign: 'center', color: '#999', fontSize: '12px', marginTop: '20px' }}>
+          Only @bvrithyderabad.edu.in accounts are allowed
+        </p>
       </div>
 
       {showErrorModal && (
@@ -233,15 +177,6 @@ export default function App() {
           <div className="error-modal">
             <div className="error-icon">⚠</div>
             <p>{errorMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {showSuccessModal && (
-        <div className="success-modal-overlay">
-          <div className="success-modal-auth">
-            <div className="success-icon-auth">✓</div>
-            <p>{successMessage}</p>
           </div>
         </div>
       )}
