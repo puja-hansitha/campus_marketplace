@@ -72,7 +72,15 @@ export default function SellPage() {
         <div className="photo-upload">
           <input type="file" id="photo-input" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={handlePhotoChange} />
           <label htmlFor="photo-input" className="photo-upload-btn">📷 Upload Photo</label>
-          {photoPreview && <img src={photoPreview} alt="Preview" className="photo-preview" />}
+          {photoPreview && (
+            <div style={{ position: 'relative', display: 'inline-block', marginTop: '15px' }}>
+              <img src={photoPreview} alt="Preview" className="photo-preview" style={{ marginTop: 0 }} />
+              <button onClick={() => { setPhoto(null); setPhotoPreview(null); const f = document.getElementById('photo-input') as HTMLInputElement; if (f) f.value = ''; }}
+                style={{ position: 'absolute', top: '-10px', right: '-10px', background: '#f5576c', color: 'white', border: 'none', borderRadius: '50%', width: '26px', height: '26px', fontSize: '14px', cursor: 'pointer', fontWeight: 'bold', lineHeight: '26px' }}>
+                ✕
+              </button>
+            </div>
+          )}
         </div>
         <div className="form-group">
           <label>Description</label>
