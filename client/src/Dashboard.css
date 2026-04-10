@@ -544,12 +544,15 @@
 
 .product-message-item,
 .buyer-message-item {
-  padding: 15px 20px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: all 0.2s;
   background: white;
   border-bottom: 1px solid #f0f0f0;
-  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
 
 .product-message-item:hover,
@@ -563,34 +566,46 @@
   border-left: 4px solid #667eea;
 }
 
+.product-message-item .msg-info,
+.buyer-message-item .msg-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-message-item strong,
 .buyer-message-item strong {
-  color: #333;
+  color: #111;
   font-size: 15px;
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.buyer-message-item {
-  padding: 15px 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.product-message-item .msg-sub,
+.buyer-message-item .msg-sub {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.product-message-item .unread-badge {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background: #667eea;
+.product-message-item .unread-badge,
+.buyer-message-item .unread-badge {
+  background: #25d366;
   color: white;
-  border-radius: 12px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
+  border-radius: 50%;
+  min-width: 22px;
+  height: 22px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 4px;
 }
 
 /* Chat Area - WhatsApp Style */

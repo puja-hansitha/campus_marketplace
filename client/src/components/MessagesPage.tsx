@@ -198,10 +198,10 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
                     if (!isSeller && convos.length > 0) setSelectedConversation(convos[0]);
                     else setSelectedConversation(null);
                   }}>
-                  <strong>{product?.description.substring(0, 30)}...</strong>
-                  <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                    {isSeller ? `${convos.length} buyer(s)` : `Seller: ${convos[0]?.userName}`}
-                  </p>
+                  <div className="msg-info">
+                    <strong>{product?.description.substring(0, 30)}...</strong>
+                    <span className="msg-sub">{isSeller ? `${convos.length} buyer(s)` : `Seller: ${convos[0]?.userName}`}</span>
+                  </div>
                   {unread > 0 && <span className="unread-badge">{unread}</span>}
                 </div>
               );
@@ -218,9 +218,10 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
               return (
                 <div key={`${conv.userId}-${conv.productId}`}
                   className={`buyer-message-item ${selectedConversation?.userId === conv.userId ? 'active' : ''}`}
-                  onClick={() => setSelectedConversation(conv)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong>{conv.userName}</strong>
+                  onClick={() => setSelectedConversation(conv)}>
+                  <div className="msg-info">
+                    <strong>{conv.userName}</strong>
+                  </div>
                   {unread > 0 && <span className="unread-badge">{unread}</span>}
                 </div>
               );
