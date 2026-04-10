@@ -52,8 +52,9 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
       default:
         return (
           <>
-            <h1>Welcome to Campus Marketplace</h1>
+            <h1>Welcome, {userName}!</h1>
             <p>Logged in as: {userName}</p>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '14px', marginTop: '-40px', marginBottom: '50px' }}>{userEmail}</p>
             
             <div className="hero-section">
               <div className="hero-card sell-card">

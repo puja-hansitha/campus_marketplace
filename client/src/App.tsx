@@ -106,13 +106,12 @@ export default function App() {
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ hd: 'bvrithyderabad.edu.in' });
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
       if (!user.email?.endsWith('@bvrithyderabad.edu.in')) {
         await signOut(auth);
-        showError('Only @bvrithyderabad.edu.in email addresses are allowed.');
+        showError('Access restricted to @bvrithyderabad.edu.in accounts only.');
         return;
       }
 
@@ -129,7 +128,7 @@ export default function App() {
       setLoggedInEmail(user.email || '');
       setIsLoggedIn(true);
     } catch (error: any) {
-      showError(error.message);
+      if (error.code !== 'auth/popup-closed-by-user') showError(error.message);
     }
   };
 
