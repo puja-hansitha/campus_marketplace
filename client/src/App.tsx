@@ -78,6 +78,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    handledByGoogle.current = false;
     setIsLoggedIn(false);
     setLoggedInEmail('');
   };

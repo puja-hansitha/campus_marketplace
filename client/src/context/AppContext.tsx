@@ -66,25 +66,18 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
     loadUserProfile();
   }, [userEmail]);
 
-  // Listen to Firestore products in real-time
   useEffect(() => {
-    console.log('Setting up Firestore listener...');
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, 
+    const unsubscribe = onSnapshot(q,
       (snapshot) => {
-        console.log('Received products:', snapshot.size);
         const productsData: Product[] = [];
         snapshot.forEach((doc) => {
           productsData.push({ id: doc.id, ...doc.data() } as Product);
         });
         setProducts(productsData);
       },
-      (error) => {
-        console.error('Firestore error:', error);
-        alert('Error loading products: ' + error.message);
-      }
+      (error) => alert('Error loading products: ' + error.message)
     );
-
     return () => unsubscribe();
   }, []);
 
@@ -104,39 +97,30 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
 
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     try {
-      console.log('Adding product to Firestore...');
-      const docRef = await addDoc(collection(db, 'products'), {
+      await addDoc(collection(db, 'products'), {
         ...product,
         sellerName: userName,
         sellerId: userEmail,
         status: 'active',
         createdAt: Date.now(),
       });
-      console.log('Product added with ID:', docRef.id);
     } catch (error: any) {
-      console.error('Error adding product:', error);
       alert('Failed to add product: ' + error.message);
     }
   };
 
   const deleteProduct = async (productId: string) => {
     try {
-      console.log('Deleting product:', productId);
       await deleteDoc(doc(db, 'products', productId));
-      console.log('Product deleted successfully');
     } catch (error: any) {
-      console.error('Error deleting product:', error);
       alert('Failed to delete product: ' + error.message);
     }
   };
 
   const updateProduct = async (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => {
     try {
-      console.log('Updating product:', productId, updates);
       await updateDoc(doc(db, 'products', productId), updates as any);
-      console.log('Product updated successfully');
     } catch (error: any) {
-      console.error('Error updating product:', error);
       alert('Failed to update product: ' + error.message);
     }
   };
