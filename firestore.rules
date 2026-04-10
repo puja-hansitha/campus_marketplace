@@ -40,5 +40,13 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update, delete: if false;
     }
+
+    // Notifications collection - recipient can read/update, authenticated users can create
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.token.email == resource.data.recipientId;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.token.email == resource.data.recipientId;
+      allow delete: if request.auth != null && request.auth.token.email == resource.data.recipientId;
+    }
   }
 }
