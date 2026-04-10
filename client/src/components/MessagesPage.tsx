@@ -125,19 +125,20 @@ export default function MessagesPage({ navigationData }: { navigationData?: any 
     if (!messageText.trim() || !selectedConversation) return;
 
     const conversationId = [currentUser, selectedConversation.userId, selectedConversation.productId].sort().join('_');
+    const text = messageText.trim();
+    setMessageText(''); // clear immediately
 
     try {
       await addDoc(collection(db, 'messages'), {
         conversationId,
         senderId: currentUser,
         senderName: userName,
-        text: messageText.trim(),
+        text,
         createdAt: Date.now()
       });
-      setMessageText('');
     } catch (error: any) {
       console.error('Error sending message:', error);
-      alert('Failed to send message: ' + error.message);
+      setMessageText(text); // restore on failure
     }
   };
 
