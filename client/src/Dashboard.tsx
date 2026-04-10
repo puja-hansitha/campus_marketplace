@@ -48,7 +48,7 @@ export default function Dashboard({ userName, userEmail, onLogout }: DashboardPr
       case 'history':
         return <HistoryPage />;
       case 'requests':
-        return <RequestsPage navigationData={navigationData} />;
+        return <RequestsPage navigationData={navigationData} onNavigateToMessages={() => setCurrentPage('messages')} />;
       default:
         return (
           <>

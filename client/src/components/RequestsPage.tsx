@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface Interest {
@@ -11,7 +11,7 @@ interface Interest {
   createdAt: number;
 }
 
-export default function RequestsPage({ navigationData }: { navigationData?: any }) {
+export default function RequestsPage({ navigationData, onNavigateToMessages }: { navigationData?: any, onNavigateToMessages?: () => void }) {
   const { products, currentUser, markAsSold } = useApp();
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [sellingInterests, setSellingInterests] = useState<Interest[]>([]);
@@ -83,6 +83,12 @@ export default function RequestsPage({ navigationData }: { navigationData?: any 
   const handleMarkAsSold = async (productId: string, buyerId: string, buyerName: string) => {
     if (window.confirm(`Mark this product as sold to ${buyerName}?`)) {
       await markAsSold(productId, buyerId, buyerName);
+    }
+  };
+
+  const handleRemoveInterest = async (interestId: string) => {
+    if (window.confirm('Remove your interest in this product?')) {
+      await deleteDoc(doc(db, 'interests', interestId));
     }
   };
 
@@ -175,6 +181,14 @@ export default function RequestsPage({ navigationData }: { navigationData?: any 
                     <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
                       Requested on {new Date(interest.createdAt).toLocaleDateString()}
                     </p>
+                    <div className="item-actions" style={{ marginTop: '12px' }}>
+                      <button className="message-seller-btn" onClick={onNavigateToMessages}>
+                        💬 Chat
+                      </button>
+                      <button className="remove-interest-btn" onClick={() => handleRemoveInterest(interest.id)}>
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 );
               })}
