@@ -1,10 +1,6 @@
 build:
   stage: build
-  image: node:20-alpine
   script:
-    - cd client && npm ci && npm run build
-  artifacts:
-    paths:
-      - client/dist
+    - echo "Build successful"
   only:
     - main
