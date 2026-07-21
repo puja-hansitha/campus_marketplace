@@ -1,6 +1,3 @@
-build:
-  stage: build
+test:
   script:
-    - echo "Build successful"
-  only:
-    - main
+    - echo "ok"
