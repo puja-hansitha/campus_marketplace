@@ -41,37 +41,37 @@ export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages
 
   const handleInterest = async (product: Product) => {
     setLoadingId(product.id);
+    const conversationId = [currentUser.uid, product.sellerId, product.id].sort().join('_');
+    const now = Date.now();
+
+    // Fire all three writes in parallel — none depends on the others
     try {
-      await addDoc(collection(db, 'interests'), {
-        productId: product.id,
-        buyerId:   currentUser.uid,
-        buyerName: currentUser.name,
-        sellerId:  product.sellerId,
-        status:    'pending',
-        createdAt: Date.now(),
-      });
-
-      // Auto-open message by sending the first message
-      const conversationId = [currentUser.uid, product.sellerId, product.id].sort().join('_');
-      await addDoc(collection(db, 'messages'), {
-        conversationId,
-        senderId:   currentUser.uid,
-        senderName: currentUser.name,
-        text:       `Hi! I'm interested in buying "${product.description.substring(0, 50)}". Is it still available?`,
-        createdAt:  Date.now(),
-        readBy:     [currentUser.uid],
-      });
-
-      // Notify seller
-      await sendNotification({
-        type:        'interest',
-        recipientId: product.sellerId,
-        message:     `${currentUser.name} is interested in your item: "${product.description.substring(0, 40)}"`,
-        productId:   product.id,
-        senderId:    currentUser.uid,
-        senderName:  currentUser.name,
-      });
-
+      await Promise.all([
+        addDoc(collection(db, 'interests'), {
+          productId: product.id,
+          buyerId:   currentUser.uid,
+          buyerName: currentUser.name,
+          sellerId:  product.sellerId,
+          status:    'pending',
+          createdAt: now,
+        }),
+        addDoc(collection(db, 'messages'), {
+          conversationId,
+          senderId:   currentUser.uid,
+          senderName: currentUser.name,
+          text:       `Hi! I'm interested in buying "${product.description.substring(0, 50)}". Is it still available?`,
+          createdAt:  now,
+          readBy:     [currentUser.uid],
+        }),
+        sendNotification({
+          type:        'interest',
+          recipientId: product.sellerId,
+          message:     `${currentUser.name} is interested in your item: "${product.description.substring(0, 40)}"`,
+          productId:   product.id,
+          senderId:    currentUser.uid,
+          senderName:  currentUser.name,
+        }),
+      ]);
       showToast('Interest sent! A message was opened with the seller.');
     } catch (err: any) {
       showToast('Error: ' + err.message);

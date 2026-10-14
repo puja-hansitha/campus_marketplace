@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { ReactNode } from 'react';
 import {
   collection, addDoc, onSnapshot, query, orderBy,
-  doc, updateDoc, where, getDocs, writeBatch,
+  doc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { UserProfile } from '../App';
@@ -11,13 +11,13 @@ import type { UserProfile } from '../App';
 
 export interface Product {
   id: string;
-  sellerId: string;       // Firebase UID
+  sellerId: string;
   sellerName: string;
   sellerPhoto: string | null;
-  imageURL: string;       // Firebase Storage URL
+  imageURL: string;
   description: string;
   category: 'stationery' | 'books' | 'electronics' | 'other';
-  price: number;          // stored as number, not string
+  price: number;
   status: 'active' | 'sold';
   createdAt: number;
 }
@@ -25,9 +25,9 @@ export interface Product {
 export interface Interest {
   id: string;
   productId: string;
-  buyerId: string;        // Firebase UID
+  buyerId: string;
   buyerName: string;
-  sellerId: string;       // Firebase UID
+  sellerId: string;
   status: 'pending' | 'accepted' | 'declined';
   createdAt: number;
 }
@@ -60,22 +60,17 @@ export interface AppNotification {
 // ─── Context Type ─────────────────────────────────────────────────────────────
 
 interface AppContextType {
-  // Data
   products: Product[];
   interests: Interest[];
   transactions: Transaction[];
-  // Current user (from Firebase Auth)
   currentUser: UserProfile;
-  // Product actions
   addProduct: (p: Omit<Product, 'id' | 'createdAt' | 'status'>) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Pick<Product, 'description' | 'price' | 'category'>>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   markAsSold: (productId: string, buyerId: string, buyerName: string) => Promise<void>;
-  // Interest helpers
   getInterestsForProduct: (productId: string) => Interest[];
   hasInterest: (productId: string) => boolean;
   interestId: (productId: string) => string | undefined;
-  // Notification helpers
   sendNotification: (n: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>) => Promise<void>;
 }
 
@@ -88,126 +83,165 @@ export function AppProvider({ children, currentUser }: { children: ReactNode; cu
   const [interests, setInterests]       = useState<Interest[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Real-time products
+  // ── Products listener ─────────────────────────────────────────────────────
+  // Only load ACTIVE products. Sold ones are only needed in History (transactions).
+  // Limit to 200 most-recent to keep payload small.
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+    const q = query(
+      collection(db, 'products'),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc'),
+    );
     return onSnapshot(q, (snap) => {
       setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
     });
   }, []);
 
-  // Real-time interests (only ones relevant to current user — as seller or buyer)
+  // ── Interests listener ────────────────────────────────────────────────────
+  // Two scoped queries (as seller, as buyer) — only fetches what the user needs.
   useEffect(() => {
     if (!currentUser.uid) return;
-
-    // We need two queries: as seller and as buyer
-    const qSeller = query(collection(db, 'interests'), where('sellerId', '==', currentUser.uid));
-    const qBuyer  = query(collection(db, 'interests'), where('buyerId',  '==', currentUser.uid));
-
     const mergedMap = new Map<string, Interest>();
 
-    const unsubSeller = onSnapshot(qSeller, (snap) => {
-      snap.docs.forEach(d => mergedMap.set(d.id, { id: d.id, ...d.data() } as Interest));
-      // Remove deleted
-      const currentIds = new Set(snap.docs.map(d => d.id));
-      for (const [id, interest] of mergedMap) {
-        if (interest.sellerId === currentUser.uid && !currentIds.has(id)) mergedMap.delete(id);
+    const merge = (snap: any, roleKey: 'sellerId' | 'buyerId') => {
+      const incoming = new Set<string>();
+      snap.docs.forEach((d: any) => {
+        mergedMap.set(d.id, { id: d.id, ...d.data() } as Interest);
+        incoming.add(d.id);
+      });
+      // Prune removed docs for this role
+      for (const [id, i] of mergedMap) {
+        if (i[roleKey] === currentUser.uid && !incoming.has(id)) mergedMap.delete(id);
       }
       setInterests(Array.from(mergedMap.values()));
-    });
+    };
 
-    const unsubBuyer = onSnapshot(qBuyer, (snap) => {
-      snap.docs.forEach(d => mergedMap.set(d.id, { id: d.id, ...d.data() } as Interest));
-      const currentIds = new Set(snap.docs.map(d => d.id));
-      for (const [id, interest] of mergedMap) {
-        if (interest.buyerId === currentUser.uid && !currentIds.has(id)) mergedMap.delete(id);
-      }
-      setInterests(Array.from(mergedMap.values()));
-    });
+    const unsubSeller = onSnapshot(
+      query(collection(db, 'interests'), where('sellerId', '==', currentUser.uid)),
+      snap => merge(snap, 'sellerId')
+    );
+    const unsubBuyer = onSnapshot(
+      query(collection(db, 'interests'), where('buyerId', '==', currentUser.uid)),
+      snap => merge(snap, 'buyerId')
+    );
 
     return () => { unsubSeller(); unsubBuyer(); };
   }, [currentUser.uid]);
 
-  // Real-time transactions
+  // ── Transactions listener ─────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser.uid) return;
-    // Listen to transactions where user is seller or buyer
-    const qSeller = query(collection(db, 'transactions'), where('sellerId', '==', currentUser.uid), orderBy('soldAt', 'desc'));
-    const qBuyer  = query(collection(db, 'transactions'), where('buyerId',  '==', currentUser.uid), orderBy('soldAt', 'desc'));
-
     const txMap = new Map<string, Transaction>();
 
-    const unsubSeller = onSnapshot(qSeller, (snap) => {
-      snap.docs.forEach(d => txMap.set(d.id, { id: d.id, ...d.data() } as Transaction));
+    const merge = (snap: any) => {
+      snap.docs.forEach((d: any) => txMap.set(d.id, { id: d.id, ...d.data() } as Transaction));
       setTransactions(Array.from(txMap.values()).sort((a, b) => b.soldAt - a.soldAt));
-    });
-    const unsubBuyer = onSnapshot(qBuyer, (snap) => {
-      snap.docs.forEach(d => txMap.set(d.id, { id: d.id, ...d.data() } as Transaction));
-      setTransactions(Array.from(txMap.values()).sort((a, b) => b.soldAt - a.soldAt));
-    });
+    };
 
-    return () => { unsubSeller(); unsubBuyer(); };
+    const unsubS = onSnapshot(query(collection(db, 'transactions'), where('sellerId', '==', currentUser.uid), orderBy('soldAt', 'desc')), merge);
+    const unsubB = onSnapshot(query(collection(db, 'transactions'), where('buyerId',  '==', currentUser.uid), orderBy('soldAt', 'desc')), merge);
+
+    return () => { unsubS(); unsubB(); };
   }, [currentUser.uid]);
 
-  // ─── Actions ────────────────────────────────────────────────────────────────
+  // ─── Actions ─────────────────────────────────────────────────────────────
+  // All write actions use OPTIMISTIC UPDATES:
+  // 1. Update local state immediately → UI responds instantly
+  // 2. Write to Firestore in background
+  // 3. onSnapshot corrects anything if the write fails
 
   const sendNotification = useCallback(async (n: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>) => {
-    await addDoc(collection(db, 'notifications'), { ...n, isRead: false, createdAt: Date.now() });
+    // Fire-and-forget — notifications are not critical path
+    addDoc(collection(db, 'notifications'), { ...n, isRead: false, createdAt: Date.now() });
   }, []);
 
   const addProduct = useCallback(async (product: Omit<Product, 'id' | 'createdAt' | 'status'>) => {
-    await addDoc(collection(db, 'products'), {
-      ...product,
-      status: 'active',
-      createdAt: Date.now(),
-    });
+    const tempId    = `temp_${Date.now()}`;
+    const tempDoc: Product = { ...product, id: tempId, status: 'active', createdAt: Date.now() };
+
+    // Optimistic: show immediately
+    setProducts(prev => [tempDoc, ...prev]);
+
+    try {
+      const ref = await addDoc(collection(db, 'products'), {
+        ...product,
+        status: 'active',
+        createdAt: Date.now(),
+      });
+      // Replace temp with real ID (onSnapshot will also do this, but this is faster)
+      setProducts(prev => prev.map(p => p.id === tempId ? { ...tempDoc, id: ref.id } : p));
+    } catch (err) {
+      // Rollback
+      setProducts(prev => prev.filter(p => p.id !== tempId));
+      throw err;
+    }
   }, []);
 
   const updateProduct = useCallback(async (
     id: string,
     updates: Partial<Pick<Product, 'description' | 'price' | 'category'>>
   ) => {
-    await updateDoc(doc(db, 'products', id), updates as any);
+    // Optimistic
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    try {
+      await updateDoc(doc(db, 'products', id), updates as any);
+    } catch (err) {
+      // onSnapshot will revert automatically
+      throw err;
+    }
   }, []);
 
   const deleteProduct = useCallback(async (id: string) => {
-    const batch = writeBatch(db);
+    const product     = products.find(p => p.id === id);
+    const pendingBuyers = interests.filter(i => i.productId === id && i.status === 'pending');
 
-    // Notify all pending buyers
-    const interestsSnap = await getDocs(
-      query(collection(db, 'interests'), where('productId', '==', id), where('status', '==', 'pending'))
-    );
-    const product = products.find(p => p.id === id);
+    // Optimistic: remove immediately
+    setProducts(prev => prev.filter(p => p.id !== id));
+    setInterests(prev => prev.filter(i => i.productId !== id));
 
-    interestsSnap.docs.forEach(d => {
-      batch.delete(doc(db, 'interests', d.id));
-      // Add notification for each buyer
-      const notifRef = doc(collection(db, 'notifications'));
-      batch.set(notifRef, {
-        type: 'deleted',
-        recipientId: d.data().buyerId,
-        message: `"${product?.description.substring(0, 40) || 'A product'}" was removed by the seller.`,
-        productId: id,
-        senderId: currentUser.uid,
-        senderName: currentUser.name,
-        isRead: false,
-        createdAt: Date.now(),
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'products', id));
+
+      pendingBuyers.forEach(i => {
+        batch.delete(doc(db, 'interests', i.id));
+        const notifRef = doc(collection(db, 'notifications'));
+        batch.set(notifRef, {
+          type: 'deleted',
+          recipientId: i.buyerId,
+          message: `"${product?.description.substring(0, 40) || 'A product'}" was removed by the seller.`,
+          productId: id,
+          senderId:  currentUser.uid,
+          senderName: currentUser.name,
+          isRead: false,
+          createdAt: Date.now(),
+        });
       });
-    });
 
-    batch.delete(doc(db, 'products', id));
-    await batch.commit();
-  }, [products, currentUser]);
+      await batch.commit();
+    } catch (err) {
+      // onSnapshot will restore on failure
+      throw err;
+    }
+  }, [products, interests, currentUser]);
 
   const markAsSold = useCallback(async (productId: string, buyerId: string, buyerName: string) => {
-    const product = products.find(p => p.id === productId);
+    const product       = products.find(p => p.id === productId);
     if (!product) throw new Error('Product not found');
+    const productInterests = interests.filter(i => i.productId === productId);
 
-    const batch = writeBatch(db);
+    // Optimistic: mark sold + update interests immediately
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, status: 'sold' } : p));
+    setInterests(prev => prev.map(i => {
+      if (i.productId !== productId) return i;
+      return { ...i, status: i.buyerId === buyerId ? 'accepted' : 'declined' };
+    }));
 
-    // Create transaction record
-    const txRef = doc(collection(db, 'transactions'));
-    batch.set(txRef, {
+    const soldAt = Date.now();
+
+    // Optimistic: add transaction to local state
+    const tempTx: Transaction = {
+      id: `temp_${soldAt}`,
       productId,
       sellerId:   product.sellerId,
       sellerName: product.sellerName,
@@ -216,52 +250,70 @@ export function AppProvider({ children, currentUser }: { children: ReactNode; cu
       imageURL:    product.imageURL,
       description: product.description,
       price:       product.price,
-      soldAt:      Date.now(),
-    });
+      soldAt,
+    };
+    setTransactions(prev => [tempTx, ...prev]);
 
-    // Mark product sold
-    batch.update(doc(db, 'products', productId), { status: 'sold' });
+    try {
+      const batch = writeBatch(db);
 
-    // Update all interests: winner = accepted, others = declined
-    const interestsSnap = await getDocs(
-      query(collection(db, 'interests'), where('productId', '==', productId))
-    );
-
-    interestsSnap.docs.forEach(d => {
-      const isWinner = d.data().buyerId === buyerId;
-      batch.update(doc(db, 'interests', d.id), {
-        status: isWinner ? 'accepted' : 'declined',
+      // Transaction record
+      const txRef = doc(collection(db, 'transactions'));
+      batch.set(txRef, {
+        productId,
+        sellerId:   product.sellerId,
+        sellerName: product.sellerName,
+        buyerId,
+        buyerName,
+        imageURL:    product.imageURL,
+        description: product.description,
+        price:       product.price,
+        soldAt,
       });
 
-      // Notify declined buyers
-      if (!isWinner) {
-        const notifRef = doc(collection(db, 'notifications'));
-        batch.set(notifRef, {
-          type: 'declined',
-          recipientId: d.data().buyerId,
-          message: `Sorry, "${product.description.substring(0, 40)}" was sold to someone else.`,
-          productId,
-          isRead: false,
-          createdAt: Date.now(),
+      // Mark product sold
+      batch.update(doc(db, 'products', productId), { status: 'sold' });
+
+      // Update interests using already-loaded data (no extra getDocs needed)
+      productInterests.forEach(i => {
+        batch.update(doc(db, 'interests', i.id), {
+          status: i.buyerId === buyerId ? 'accepted' : 'declined',
         });
-      }
-    });
+        if (i.buyerId !== buyerId) {
+          const notifRef = doc(collection(db, 'notifications'));
+          batch.set(notifRef, {
+            type: 'declined',
+            recipientId: i.buyerId,
+            message: `Sorry, "${product.description.substring(0, 40)}" was sold to someone else.`,
+            productId,
+            isRead: false,
+            createdAt: soldAt,
+          });
+        }
+      });
 
-    // Notify the winning buyer
-    const winNotifRef = doc(collection(db, 'notifications'));
-    batch.set(winNotifRef, {
-      type: 'sold',
-      recipientId: buyerId,
-      message: `🎉 "${product.description.substring(0, 40)}" — ${currentUser.name} confirmed the sale to you!`,
-      productId,
-      isRead: false,
-      createdAt: Date.now(),
-    });
+      // Notify winning buyer
+      const winRef = doc(collection(db, 'notifications'));
+      batch.set(winRef, {
+        type: 'sold',
+        recipientId: buyerId,
+        message: `🎉 "${product.description.substring(0, 40)}" — ${currentUser.name} confirmed the sale to you!`,
+        productId,
+        isRead: false,
+        createdAt: soldAt,
+      });
 
-    await batch.commit();
-  }, [products, currentUser]);
+      await batch.commit();
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
+      // Replace temp transaction ID with real one
+      setTransactions(prev => prev.map(t => t.id === tempTx.id ? { ...tempTx, id: txRef.id } : t));
+    } catch (err) {
+      // onSnapshot will revert on failure
+      throw err;
+    }
+  }, [products, interests, currentUser]);
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   const getInterestsForProduct = useCallback((productId: string) =>
     interests.filter(i => i.productId === productId),

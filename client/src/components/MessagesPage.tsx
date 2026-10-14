@@ -135,26 +135,47 @@ export default function MessagesPage({ navData }: { navData?: any }) {
   const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed || !selectedConv) return;
+
+    // Optimistic: add message to local state immediately
+    const tempMsg: Message = {
+      id:             `temp_${Date.now()}`,
+      conversationId: selectedConv.conversationId,
+      senderId:       currentUser.uid,
+      senderName:     currentUser.name,
+      text:           trimmed,
+      createdAt:      Date.now(),
+      readBy:         [currentUser.uid],
+    };
+    setMessages(prev => [...prev, tempMsg]);
     setText('');
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+
     try {
-      await addDoc(collection(db, 'messages'), {
-        conversationId: selectedConv.conversationId,
-        senderId:   currentUser.uid,
-        senderName: currentUser.name,
-        text:       trimmed,
-        createdAt:  Date.now(),
-        readBy:     [currentUser.uid],
-      });
-      await sendNotification({
-        type:        'message',
-        recipientId: selectedConv.otherUid,
-        message:     `${currentUser.name}: ${trimmed.substring(0, 60)}`,
-        productId:   selectedConv.productId,
-        senderId:    currentUser.uid,
-        senderName:  currentUser.name,
-      });
+      // Fire both writes in parallel
+      const [msgRef] = await Promise.all([
+        addDoc(collection(db, 'messages'), {
+          conversationId: selectedConv.conversationId,
+          senderId:   currentUser.uid,
+          senderName: currentUser.name,
+          text:       trimmed,
+          createdAt:  tempMsg.createdAt,
+          readBy:     [currentUser.uid],
+        }),
+        sendNotification({
+          type:        'message',
+          recipientId: selectedConv.otherUid,
+          message:     `${currentUser.name}: ${trimmed.substring(0, 60)}`,
+          productId:   selectedConv.productId,
+          senderId:    currentUser.uid,
+          senderName:  currentUser.name,
+        }),
+      ]);
+      // Replace temp id with real id
+      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...tempMsg, id: msgRef.id } : m));
     } catch {
-      setText(trimmed); // restore on error
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      setText(trimmed);
     }
   };
 
