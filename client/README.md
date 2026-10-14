@@ -1,73 +1,80 @@
-# React + TypeScript + Vite
+# Campus Marketplace — Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React frontend for Campus Marketplace, a college buy/sell platform.
 
-Currently, two official plugins are available:
+For full project documentation, see the [root README](../README.md).
+For Firebase setup and deployment, see [SETUP.md](../SETUP.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19 + TypeScript
+- Vite 7
+- Firebase SDK v12 (Firestore + Storage)
+- canvas-confetti
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Scripts
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install       # Install dependencies
+npm run dev       # Start dev server at http://localhost:5173
+npm run build     # Production build → dist/
+npm run preview   # Preview production build locally
+npm run lint      # Run ESLint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Source Structure
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── main.tsx                   # React entry point
+├── App.tsx                    # Auth screen (localStorage-based login/register)
+├── Auth.tsx                   # Unused — Firebase Auth + Google OAuth implementation
+├── Dashboard.tsx              # Main layout: left sidebar, top bar, page router
+├── firebase.ts                # Firebase app init and SDK exports (db, storage, auth)
+├── cleanupInterests.ts        # Admin utilities: delete duplicate products / all interests
+├── index.css                  # Global base styles
+├── App.css                    # Auth screen styles
+├── Auth.css                   # (shared with App.tsx)
+├── Dashboard.css              # All dashboard/component styles
+├── context/
+│   └── AppContext.tsx         # Global state provider — products, user, Firestore sync
+└── components/
+    ├── SellPage.tsx            # Photo upload + product form → Firestore
+    ├── BuyPage.tsx             # Product grid, search/filter, express interest
+    ├── MessagesPage.tsx        # Real-time chat, Agree to Sell/Buy flow
+    ├── RequestsPage.tsx        # Seller: view interested buyers. Buyer: view own requests
+    ├── HistoryPage.tsx         # Selling tab (active). Sold/Bought tabs are stubs.
+    ├── ProfilePage.tsx         # Edit name + photo. Admin cleanup tools.
+    └── NotificationsDropdown.tsx  # Stub — always shows "No notifications"
+```
+
+---
+
+## Key Implementation Notes
+
+### Authentication
+Login and registration are handled in `App.tsx` using `localStorage`. User credentials (name, email, password) are saved as JSON in the browser. "Remember me" stores the logged-in session across restarts. No server-side auth is involved.
+
+`Auth.tsx` contains a complete Firebase Auth implementation with Google OAuth — it exists but is **not used**. It can replace `App.tsx` in the future.
+
+### Data Flow
+`AppContext.tsx` sets up a real-time Firestore listener on the `products` collection and exposes `addProduct`, `updateProduct`, and `deleteProduct` to all pages. All components consume this context via `useApp()`.
+
+Interests and messages are fetched directly inside each component using Firestore `onSnapshot` listeners.
+
+### Messaging
+Conversations are identified by: `[buyerId, sellerId, productId].sort().join('_')`. When a buyer clicks "Interested to Buy", an interest document is created in Firestore and an automatic "Interested to buy" message is sent to start the conversation.
+
+### Sale Completion
+Handled in `MessagesPage.tsx`. Both buyer and seller click "Agree to Sell/Buy". When both `buyerAgreed` and `sellerAgreed` are `true` on the interest document, the product is marked `sold: true` and all other interests for that product are marked sold too.
+
+### What's a Stub
+- `NotificationsDropdown.tsx` — hardcoded "No notifications"
+- `HistoryPage.tsx` Sold and Bought tabs — hardcoded empty, never populated
+- `RequestsPage.tsx` "Sell to you" and "Bought by" buttons — rendered with no click handlers
