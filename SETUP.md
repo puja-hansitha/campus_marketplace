@@ -1,136 +1,118 @@
-# Campus Marketplace — Setup Guide
+# Campus Marketplace v2 — Setup Guide
 
 ## Prerequisites
-
-- [Node.js](https://nodejs.org/) v18 or later
-- A Firebase project (Firestore + Storage enabled)
-
----
-
-## 1. Firebase Setup
-
-The app uses Firebase Firestore (database) and Firebase Storage (product photos).
-Authentication is handled via localStorage — Firebase Auth is not currently used.
-
-### Create a Firebase project
-
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Click **Add project** and follow the setup steps
-3. Once created, click the **Web** icon (`</>`) to register a web app
-4. Copy the `firebaseConfig` object shown — you'll need it in the next step
-
-### Enable Firestore
-
-1. In the Firebase Console, go to **Firestore Database**
-2. Click **Create database**
-3. Choose **Start in test mode** (allows open reads/writes for development)
-4. Select a region and click **Done**
-
-### Enable Storage
-
-1. Go to **Storage** in the Firebase Console
-2. Click **Get started**
-3. Choose **Start in test mode**
-4. Click **Done**
-
-> ⚠️ Test mode allows anyone to read/write. Set proper security rules before going to production.
+- Node.js 18+
+- A Firebase project (free Spark plan is enough)
 
 ---
 
-## 2. Configure Firebase in the Project
+## Step 1 — Create a Firebase project
 
-Open `client/src/firebase.ts` and replace the config values with your own:
+1. Go to https://console.firebase.google.com → **Add project**
+2. Enable **Google Analytics** if you want (optional)
 
-```ts
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-};
+---
+
+## Step 2 — Enable Firebase services
+
+In your project console:
+
+| Service | Where |
+|---|---|
+| **Authentication** | Build → Authentication → Get started → Enable Email/Password AND Google |
+| **Firestore** | Build → Firestore Database → Create database → Start in **test mode** (you'll tighten rules later) |
+| **Storage** | Build → Storage → Get started → Start in **test mode** |
+| **Hosting** | Build → Hosting → Get started |
+
+For **Google OAuth**, add your domain to "Authorized domains" in Authentication settings.
+
+---
+
+## Step 3 — Get your Firebase config
+
+Project Settings (gear icon) → Your apps → Add app → Web → Register app → Copy the config object.
+
+---
+
+## Step 4 — Create your .env file
+
+```bash
+cp client/.env.example client/.env
+```
+
+Fill in client/.env:
+```
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+VITE_COLLEGE_EMAIL_DOMAIN=bvrithyderabad.edu.in
 ```
 
 ---
 
-## 3. Run Locally
+## Step 5 — Run locally
 
 ```bash
 cd client
-npm install
+npm install      # skip if already done
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:5173
 
 ---
 
-## 4. Build for Production
+## Step 6 — Deploy Firestore rules & indexes
 
+Install Firebase CLI if not already:
 ```bash
-cd client
-npm run build
-```
-
-The production build is output to `client/dist/`.
-
----
-
-## 5. Deploy
-
-### Firebase Hosting (current live deployment)
-
-```bash
-# Install Firebase CLI if you haven't already
 npm install -g firebase-tools
-
 firebase login
-firebase deploy
 ```
 
-The live site is at: https://campusmart-489520.web.app
+Deploy rules:
+```bash
+# from project root
+firebase deploy --only firestore:rules,firestore:indexes,storage
+```
 
-### Vercel (alternative)
+---
 
-A `vercel.json` is also present in the root. To deploy via Vercel:
+## Step 7 — Deploy to Firebase Hosting
 
 ```bash
-npx vercel
+cd client && npm run build && cd ..
+firebase deploy --only hosting
 ```
 
-Vercel will build with `cd client && npm ci && npm run build` and serve from `client/dist/`.
-
 ---
 
-## 6. Admin Utilities
-
-Two cleanup tools are available in the **Profile page** UI (visible to all logged-in users):
-
-- **Remove Duplicate Products** — Scans Firestore for products with identical descriptions and deletes duplicates, keeping one copy.
-- **Clear All Requests** — Deletes every document in the `interests` collection. Use this to reset buyer requests.
-
-> ⚠️ These tools run against the live Firestore database. Use with caution.
-
-The underlying functions are in `client/src/cleanupInterests.ts` and can also be called programmatically.
-
----
-
-## Firestore Collections
+## Firestore Collections (auto-created on first use)
 
 | Collection | Purpose |
 |---|---|
-| `products` | All listed products (photo as base64, description, category, price, sellerId, sold flag) |
-| `interests` | Buyer interest records (productId, buyerId, sellerId, buyerAgreed, sellerAgreed, sold) |
-| `messages` | Chat messages (conversationId, senderId, text, createdAt) |
-
-Conversations are identified by a `conversationId` derived from: `[buyerId, sellerId, productId].sort().join('_')`.
+| `users` | User profiles (name, email, photoURL) |
+| `products` | Listings with Firebase Storage image URLs |
+| `interests` | Buyer interest records |
+| `transactions` | Completed sales (Sold/Bought history) |
+| `messages` | Real-time chat messages |
+| `notifications` | In-app notifications |
 
 ---
 
-## Known Limitations
+## What's fixed vs the old version
 
-- Passwords are stored as plain text in `localStorage`. This is not suitable for production — migrate to Firebase Auth (see `Auth.tsx` for a ready implementation).
-- Product photos are stored as base64 strings inside Firestore documents, not in Firebase Storage. Large photos will inflate document size and slow down reads.
-- Firestore is running in test mode with no security rules — anyone with the config can read/write all data.
-- The `interests` collection query is capped at 10 products (Firestore `in` query limit) in RequestsPage and HistoryPage.
+| Issue | Old | New |
+|---|---|---|
+| Auth | localStorage (insecure) | Firebase Auth |
+| Images | Base64 in Firestore (huge docs) | Firebase Storage URLs |
+| User ID | Email string | Firebase UID |
+| Notifications | Stub (always empty) | Fully wired |
+| History Sold/Bought | Always empty | Fully wired via transactions |
+| Edit lock | Not implemented | Price/category locked when buyers interested |
+| Delete notification | Not implemented | Buyers notified when listing deleted |
+| Styling | Custom CSS | Tailwind CSS |

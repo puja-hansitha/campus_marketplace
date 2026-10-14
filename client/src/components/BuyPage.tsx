@@ -1,171 +1,223 @@
-import { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { useState } from 'react';
+import { addDoc, collection, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useApp } from '../context/AppContext';
+import type { Product } from '../context/AppContext';
+
+const CATEGORY_LABELS: Record<Product['category'], string> = {
+  stationery:  'Stationery',
+  books:       'Books',
+  electronics: 'Electronics',
+  other:       'Other',
+};
+
+const CATEGORY_COLORS: Record<Product['category'], string> = {
+  stationery:  'bg-yellow-100 text-yellow-700',
+  books:       'bg-blue-100 text-blue-700',
+  electronics: 'bg-purple-100 text-purple-700',
+  other:       'bg-gray-100 text-gray-600',
+};
 
 export default function BuyPage({ onNavigateToMessages }: { onNavigateToMessages: () => void }) {
-  const { products, currentUser, userName } = useApp();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [interestedProducts, setInterestedProducts] = useState<Map<string, string>>(new Map());
+  const { products, currentUser, hasInterest, interestId, sendNotification } = useApp();
+  const [search, setSearch]     = useState('');
+  const [category, setCategory] = useState<Product['category'] | ''>('');
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [toast, setToast]       = useState('');
 
-  // Load existing interests for current user
-  useEffect(() => {
-    const q = query(
-      collection(db, 'interests'),
-      where('buyerId', '==', currentUser)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const interestsMap = new Map<string, string>();
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        interestsMap.set(data.productId, doc.id);
-      });
-      setInterestedProducts(interestsMap);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
-
-  const formatIndianPrice = (price: string) => {
-    const num = parseInt(price);
-    return num.toLocaleString('en-IN');
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
   };
 
-  const handleInterested = async (productId: string) => {
-    try {
-      const product = products.find(p => p.id === productId);
-      await addDoc(collection(db, 'interests'), {
-        productId,
-        buyerId: currentUser,
-        buyerName: userName,
-        sellerId: product?.sellerId,
-        createdAt: Date.now(),
-      });
-
-      // Notify the seller
-      await addDoc(collection(db, 'notifications'), {
-        type: 'interest',
-        recipientId: product?.sellerId,
-        message: `${userName} is interested in buying your item: ${product?.description.substring(0, 40)}`,
-        productId,
-        userId: currentUser,
-        userName,
-        isRead: false,
-        createdAt: Date.now(),
-      });
-
-      setShowSuccessMessage(true);
-      setTimeout(() => setShowSuccessMessage(false), 3000);
-    } catch (error) {
-      console.error('Error sending interest:', error);
-      alert('Failed to send request. Please try again.');
-    }
-  };
-
-  const handleRemoveInterest = async (productId: string) => {
-    try {
-      const interestId = interestedProducts.get(productId);
-      if (interestId) {
-        await deleteDoc(doc(db, 'interests', interestId));
-      }
-    } catch (error) {
-      console.error('Error removing interest:', error);
-      alert('Failed to remove interest. Please try again.');
-    }
-  };
-
-  const handleMessageSeller = () => {
-    onNavigateToMessages();
-  };
-
-  // Filter out seller's own products
-  const filteredProducts = products.filter(product => {
-    const notOwnProduct = product.sellerId !== currentUser;
-    const isActive = product.status !== 'sold';
-    const matchesSearch = product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category === selectedCategory;
-    return notOwnProduct && isActive && matchesSearch && matchesCategory;
+  const visibleProducts = products.filter(p => {
+    if (p.sellerId === currentUser.uid)  return false;  // own listings
+    if (p.status === 'sold')              return false;  // sold items
+    if (category && p.category !== category) return false;
+    if (search && !p.description.toLowerCase().includes(search.toLowerCase()) &&
+        !p.sellerName.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
   });
 
+  const handleInterest = async (product: Product) => {
+    setLoadingId(product.id);
+    try {
+      await addDoc(collection(db, 'interests'), {
+        productId: product.id,
+        buyerId:   currentUser.uid,
+        buyerName: currentUser.name,
+        sellerId:  product.sellerId,
+        status:    'pending',
+        createdAt: Date.now(),
+      });
+
+      // Auto-open message by sending the first message
+      const conversationId = [currentUser.uid, product.sellerId, product.id].sort().join('_');
+      await addDoc(collection(db, 'messages'), {
+        conversationId,
+        senderId:   currentUser.uid,
+        senderName: currentUser.name,
+        text:       `Hi! I'm interested in buying "${product.description.substring(0, 50)}". Is it still available?`,
+        createdAt:  Date.now(),
+        readBy:     [currentUser.uid],
+      });
+
+      // Notify seller
+      await sendNotification({
+        type:        'interest',
+        recipientId: product.sellerId,
+        message:     `${currentUser.name} is interested in your item: "${product.description.substring(0, 40)}"`,
+        productId:   product.id,
+        senderId:    currentUser.uid,
+        senderName:  currentUser.name,
+      });
+
+      showToast('Interest sent! A message was opened with the seller.');
+    } catch (err: any) {
+      showToast('Error: ' + err.message);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleRemoveInterest = async (product: Product) => {
+    const iid = interestId(product.id);
+    if (!iid) return;
+    setLoadingId(product.id);
+    try {
+      await deleteDoc(doc(db, 'interests', iid));
+      showToast('Interest removed.');
+    } catch (err: any) {
+      showToast('Error: ' + err.message);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   return (
-    <div>
-      <h1>Buy Products</h1>
-      
-      <div className="buy-filters">
-        <input 
-          type="text" 
-          placeholder="🔍 Search products..."
-          className="search-input"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        
-        <select 
-          className="category-filter"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          <option value="">All Categories</option>
-          <option value="stationery">Stationery</option>
-          <option value="books">Books</option>
-          <option value="electronics">Electronics</option>
-          <option value="other">Other</option>
-        </select>
+    <div className="max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-900">Browse Products</h1>
+        <p className="text-sm text-gray-500 mt-1">{visibleProducts.length} item{visibleProducts.length !== 1 ? 's' : ''} available</p>
       </div>
 
-      <div className="products-grid">
-        {filteredProducts.length === 0 ? (
-          <p style={{ color: '#fff', gridColumn: '1 / -1', textAlign: 'center' }}>
-            No products available
-          </p>
-        ) : (
-          filteredProducts.map(product => {
-            const isInterested = interestedProducts.has(product.id);
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+          <input
+            className="input pl-10"
+            type="text"
+            placeholder="Search products or sellers…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setCategory('')}
+            className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+              category === '' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            All
+          </button>
+          {(Object.keys(CATEGORY_LABELS) as Product['category'][]).map(c => (
+            <button
+              key={c}
+              onClick={() => setCategory(category === c ? '' : c)}
+              className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                category === c ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {CATEGORY_LABELS[c]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid */}
+      {visibleProducts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <span className="text-5xl mb-3">🛒</span>
+          <p className="font-medium">No products found</p>
+          <p className="text-sm mt-1">{search || category ? 'Try clearing your filters.' : 'Check back soon!'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visibleProducts.map(product => {
+            const interested = hasInterest(product.id);
+            const isLoading  = loadingId === product.id;
             return (
-              <div key={product.id} className="product-card">
-                <img src={product.photo} alt={product.description} className="product-image-img" />
-                <h3>{product.description.substring(0, 50)}{product.description.length > 50 ? '...' : ''}</h3>
-                <p className="product-description">{product.description}</p>
-                <p className="product-price">₹{formatIndianPrice(product.price)}</p>
-                <p className="seller-name">Seller: {product.sellerName}</p>
-                {isInterested ? (
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className="remove-interest-btn"
-                      onClick={() => handleRemoveInterest(product.id)}
+              <div key={product.id} className="card overflow-hidden hover:shadow-md transition-shadow">
+                {/* Image */}
+                <div className="relative h-44 bg-gray-100">
+                  <img
+                    src={product.imageURL}
+                    alt={product.description}
+                    className="w-full h-full object-cover"
+                  />
+                  <span className={`absolute top-2 left-2 badge ${CATEGORY_COLORS[product.category]}`}>
+                    {CATEGORY_LABELS[product.category]}
+                  </span>
+                </div>
+
+                {/* Details */}
+                <div className="p-4">
+                  <p className="text-sm text-gray-800 font-medium line-clamp-2 mb-1">
+                    {product.description}
+                  </p>
+                  <p className="text-lg font-bold text-brand-700 mb-1">
+                    ₹{product.price.toLocaleString('en-IN')}
+                  </p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    by {product.sellerName}
+                  </p>
+
+                  {interested ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRemoveInterest(product)}
+                        disabled={isLoading}
+                        className="flex-1 btn-secondary text-xs py-2"
+                      >
+                        {isLoading ? '…' : 'Remove Interest'}
+                      </button>
+                      <button
+                        onClick={onNavigateToMessages}
+                        className="flex-1 btn-primary text-xs py-2"
+                      >
+                        💬 Message
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleInterest(product)}
+                      disabled={isLoading}
+                      className="btn-primary w-full text-sm py-2"
                     >
-                      Remove Interest
+                      {isLoading ? (
+                        <span className="flex items-center gap-2 justify-center">
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Sending…
+                        </span>
+                      ) : '🤝 Interested to Buy'}
                     </button>
-                    <button 
-                      className="message-seller-btn"
-                      onClick={handleMessageSeller}
-                    >
-                      Message Seller
-                    </button>
-                  </div>
-                ) : (
-                  <button 
-                    className="interested-btn"
-                    onClick={() => handleInterested(product.id)}
-                  >
-                    Interested to Buy
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
-      {showSuccessMessage && (
-        <div className="success-toast">
-          ✓ Request sent successfully to seller!
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-50 animate-fade-in">
+          {toast}
         </div>
       )}
     </div>
   );
 }
-

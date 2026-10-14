@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, getDocs } from 'firebase/firestore';
+import {
+  collection, query, where, onSnapshot,
+  addDoc, updateDoc, doc, getDocs,
+} from 'firebase/firestore';
 import { db } from '../firebase';
-
-interface Conversation {
-  userId: string;
-  userName: string;
-  productId: string;
-  productDescription: string;
-}
+import { useApp } from '../context/AppContext';
 
 interface Message {
   id: string;
@@ -17,269 +13,287 @@ interface Message {
   senderName: string;
   text: string;
   createdAt: number;
-  readBy?: string[];
+  readBy: string[];
 }
 
-export default function MessagesPage({ navigationData }: { navigationData?: any }) {
-  const { currentUser, userName, products } = useApp();
-  const [activeTab, setActiveTab] = useState<'seller' | 'buyer'>('seller');
-  const [sellerConversations, setSellerConversations] = useState<Conversation[]>([]);
-  const [buyerConversations, setBuyerConversations] = useState<Conversation[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [allMessages, setAllMessages] = useState<Message[]>([]); // for unread counts
-  const [messageText, setMessageText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+interface ConvEntry {
+  conversationId: string;
+  otherUid: string;
+  otherName: string;
+  productId: string;
+  productDescription: string;
+  productStatus: string;
+  productImage: string;
+}
+
+function convId(uid1: string, uid2: string, productId: string) {
+  return [uid1, uid2, productId].sort().join('_');
+}
+
+function timeAgo(ts: number) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+function fmt12(ts: number) {
+  return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+export default function MessagesPage({ navData }: { navData?: any }) {
+  const { products, currentUser, interests, sendNotification } = useApp();
+
+  const [conversations, setConversations] = useState<ConvEntry[]>([]);
+  const [selectedConv, setSelectedConv]   = useState<ConvEntry | null>(null);
+  const [messages, setMessages]           = useState<Message[]>([]);
+  const [allMessages, setAllMessages]     = useState<Message[]>([]);
+  const [text, setText]                   = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Build conversation list from interests
+  useEffect(() => {
+    const convMap = new Map<string, ConvEntry>();
+    interests.forEach(i => {
+      const product = products.find(p => p.id === i.productId);
+      if (!product) return;
+
+      // Determine "other" party
+      const iAmSeller = i.sellerId === currentUser.uid;
+      const otherUid  = iAmSeller ? i.buyerId  : i.sellerId;
+      const otherName = iAmSeller ? i.buyerName : product.sellerName;
+
+      const cid = convId(currentUser.uid, otherUid, product.id);
+      if (!convMap.has(cid)) {
+        convMap.set(cid, {
+          conversationId:     cid,
+          otherUid,
+          otherName,
+          productId:          product.id,
+          productDescription: product.description,
+          productStatus:      product.status,
+          productImage:       product.imageURL,
+        });
+      }
+    });
+    setConversations(Array.from(convMap.values()));
+  }, [interests, products, currentUser.uid]);
+
+  // Load all messages for unread counts
+  useEffect(() => {
+    if (conversations.length === 0) { setAllMessages([]); return; }
+    const ids = conversations.map(c => c.conversationId).slice(0, 30);
+    const q = query(collection(db, 'messages'), where('conversationId', 'in', ids));
+    return onSnapshot(q, snap => {
+      setAllMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as Message)));
+    });
+  }, [conversations]);
 
   // Handle navigation from notification
   useEffect(() => {
-    if (navigationData?.productId && navigationData?.userId) {
-      const product = products.find(p => p.id === navigationData.productId);
-      if (product) {
-        const isSeller = product.sellerId === currentUser;
-        setActiveTab(isSeller ? 'seller' : 'buyer');
-        setSelectedProduct(navigationData.productId);
-        setTimeout(() => {
-          setSelectedConversation({
-            userId: navigationData.userId,
-            userName: navigationData.userName,
-            productId: navigationData.productId,
-            productDescription: product.description
-          });
-        }, 100);
-      }
-    }
-  }, [navigationData, products, currentUser]);
+    if (!navData?.productId) return;
+    const conv = conversations.find(c => c.productId === navData.productId);
+    if (conv) setSelectedConv(conv);
+  }, [navData, conversations]);
 
-  // Load seller conversations
+  // Load messages for selected conversation + mark as read
   useEffect(() => {
-    const q = query(collection(db, 'interests'), where('sellerId', '==', currentUser));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const convos: Conversation[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const product = products.find(p => p.id === data.productId);
-        if (product) convos.push({ userId: data.buyerId, userName: data.buyerName, productId: data.productId, productDescription: product.description });
-      });
-      setSellerConversations(convos);
-    });
-    return () => unsub();
-  }, [currentUser, products]);
-
-  // Load buyer conversations
-  useEffect(() => {
-    const q = query(collection(db, 'interests'), where('buyerId', '==', currentUser));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const convos: Conversation[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const product = products.find(p => p.id === data.productId);
-        if (product) convos.push({ userId: product.sellerId, userName: product.sellerName, productId: data.productId, productDescription: product.description });
-      });
-      setBuyerConversations(convos);
-    });
-    return () => unsub();
-  }, [currentUser, products]);
-
-  // Load ALL messages for unread counts (lightweight — only conversationId + readBy + senderId)
-  useEffect(() => {
-    const conversations = activeTab === 'seller' ? sellerConversations : buyerConversations;
-    if (conversations.length === 0) return;
-
-    const convIds = conversations.map(c =>
-      [currentUser, c.userId, c.productId].sort().join('_')
-    );
-    if (convIds.length === 0) return;
-
-    // Firestore 'in' supports max 30
-    const q = query(collection(db, 'messages'), where('conversationId', 'in', convIds.slice(0, 30)));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() } as Message));
-      setAllMessages(msgs);
-    });
-    return () => unsub();
-  }, [sellerConversations, buyerConversations, activeTab, currentUser]);
-
-  // Load messages for selected conversation
-  useEffect(() => {
-    if (!selectedConversation) return;
-    const conversationId = [currentUser, selectedConversation.userId, selectedConversation.productId].sort().join('_');
-    const q = query(collection(db, 'messages'), where('conversationId', '==', conversationId));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.forEach((d) => msgs.push({ id: d.id, ...d.data() } as Message));
-      msgs.sort((a, b) => a.createdAt - b.createdAt);
+    if (!selectedConv) return;
+    const q = query(collection(db, 'messages'), where('conversationId', '==', selectedConv.conversationId));
+    const unsub = onSnapshot(q, snap => {
+      const msgs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Message))
+        .sort((a, b) => a.createdAt - b.createdAt);
       setMessages(msgs);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      // Mark unread messages as read
-      msgs.forEach(msg => {
-        if (msg.senderId !== currentUser && !msg.readBy?.includes(currentUser)) {
-          updateDoc(doc(db, 'messages', msg.id), { readBy: [...(msg.readBy || []), currentUser] });
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+
+      // Mark incoming messages as read
+      msgs.forEach(m => {
+        if (m.senderId !== currentUser.uid && !m.readBy.includes(currentUser.uid)) {
+          updateDoc(doc(db, 'messages', m.id), { readBy: [...m.readBy, currentUser.uid] });
         }
       });
+
       // Mark related notifications as read
-      getDocs(query(collection(db, 'notifications'),
-        where('recipientId', '==', currentUser),
-        where('productId', '==', selectedConversation.productId),
+      getDocs(query(
+        collection(db, 'notifications'),
+        where('recipientId', '==', currentUser.uid),
+        where('productId', '==', selectedConv.productId),
         where('type', '==', 'message'),
         where('isRead', '==', false)
-      )).then(snap => snap.forEach(d => updateDoc(doc(db, 'notifications', d.id), { isRead: true })));
+      )).then(s => s.forEach(d => updateDoc(doc(db, 'notifications', d.id), { isRead: true })));
     });
     return () => unsub();
-  }, [selectedConversation, currentUser]);
+  }, [selectedConv, currentUser.uid]);
 
-  const getUnreadCount = (conv: Conversation) => {
-    const convId = [currentUser, conv.userId, conv.productId].sort().join('_');
-    return allMessages.filter(m => m.conversationId === convId && m.senderId !== currentUser && !m.readBy?.includes(currentUser)).length;
-  };
+  const unread = (cid: string) =>
+    allMessages.filter(m => m.conversationId === cid && m.senderId !== currentUser.uid && !m.readBy.includes(currentUser.uid)).length;
 
-  const getConversationUnreadCount = (productId: string, convos: Conversation[]) => {
-    return convos.reduce((sum, c) => sum + getUnreadCount(c), 0);
-  };
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedConversation) return;
-    const conversationId = [currentUser, selectedConversation.userId, selectedConversation.productId].sort().join('_');
-    const text = messageText.trim();
-    setMessageText('');
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || !selectedConv) return;
+    setText('');
     try {
       await addDoc(collection(db, 'messages'), {
-        conversationId, senderId: currentUser, senderName: userName, text,
-        createdAt: Date.now(), readBy: [currentUser]
+        conversationId: selectedConv.conversationId,
+        senderId:   currentUser.uid,
+        senderName: currentUser.name,
+        text:       trimmed,
+        createdAt:  Date.now(),
+        readBy:     [currentUser.uid],
       });
-      await addDoc(collection(db, 'notifications'), {
-        type: 'message', recipientId: selectedConversation.userId,
-        message: `${userName}: ${text.substring(0, 60)}`,
-        productId: selectedConversation.productId,
-        userId: currentUser, userName, isRead: false, createdAt: Date.now(),
+      await sendNotification({
+        type:        'message',
+        recipientId: selectedConv.otherUid,
+        message:     `${currentUser.name}: ${trimmed.substring(0, 60)}`,
+        productId:   selectedConv.productId,
+        senderId:    currentUser.uid,
+        senderName:  currentUser.name,
       });
-    } catch (error: any) {
-      setMessageText(text);
+    } catch {
+      setText(trimmed); // restore on error
     }
   };
 
-  const conversations = activeTab === 'seller' ? sellerConversations : buyerConversations;
-  const isSeller = activeTab === 'seller';
-  const conversationsByProduct = conversations.reduce((acc, conv) => {
-    if (!acc[conv.productId]) acc[conv.productId] = [];
-    acc[conv.productId].push(conv);
-    return acc;
-  }, {} as Record<string, Conversation[]>);
+  const isSold = selectedConv?.productStatus === 'sold';
 
   return (
-    <div>
-      <h1>Messages</h1>
-      <div className="history-tabs">
-        <button className={`tab ${activeTab === 'seller' ? 'active' : ''}`} onClick={() => { setActiveTab('seller'); setSelectedProduct(null); setSelectedConversation(null); }}>
-          As Seller ({sellerConversations.length})
-        </button>
-        <button className={`tab ${activeTab === 'buyer' ? 'active' : ''}`} onClick={() => { setActiveTab('buyer'); setSelectedProduct(null); setSelectedConversation(null); }}>
-          As Buyer ({buyerConversations.length})
-        </button>
-      </div>
+    <div className="max-w-5xl mx-auto h-[calc(100vh-140px)] flex gap-4">
 
-      <div className={`messages-container-new ${isSeller ? 'three-column' : 'two-column'}`}>
-        {/* Products List */}
-        <div className="products-list-messages">
-          <h3>{isSeller ? 'Your Products' : 'Products'}</h3>
-          {Object.keys(conversationsByProduct).length === 0 ? (
-            <p style={{ color: '#999', textAlign: 'center', marginTop: '40px' }}>No conversations</p>
+      {/* Conversation list */}
+      <div className="w-72 flex-shrink-0 card flex flex-col overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900 text-sm">Messages</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+          {conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400 px-4 text-center">
+              <span className="text-3xl mb-2">💬</span>
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs mt-1">Show interest in a product to start chatting.</p>
+            </div>
           ) : (
-            Object.keys(conversationsByProduct).map(productId => {
-              const product = products.find(p => p.id === productId);
-              const convos = conversationsByProduct[productId];
-              const unread = getConversationUnreadCount(productId, convos);
+            conversations.map(conv => {
+              const u = unread(conv.conversationId);
+              const isActive = selectedConv?.conversationId === conv.conversationId;
+              const lastMsg = allMessages
+                .filter(m => m.conversationId === conv.conversationId)
+                .sort((a, b) => b.createdAt - a.createdAt)[0];
               return (
-                <div key={productId} className={`product-message-item ${selectedProduct === productId ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedProduct(productId);
-                    if (!isSeller && convos.length > 0) setSelectedConversation(convos[0]);
-                    else setSelectedConversation(null);
-                  }}>
-                  <div className="msg-info">
-                    <strong>{product?.description.substring(0, 30)}...</strong>
-                    <span className="msg-sub">{isSeller ? `${convos.length} buyer(s)` : `Seller: ${convos[0]?.userName}`}</span>
+                <button
+                  key={conv.conversationId}
+                  onClick={() => setSelectedConv(conv)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${isActive ? 'bg-brand-50' : ''}`}
+                >
+                  <img src={conv.productImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{conv.otherName}</p>
+                      {lastMsg && <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(lastMsg.createdAt)}</span>}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                      {conv.productDescription.substring(0, 30)}…
+                    </p>
+                    {lastMsg && (
+                      <p className={`text-xs truncate mt-0.5 ${u > 0 ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                        {lastMsg.senderId === currentUser.uid ? 'You: ' : ''}{lastMsg.text.substring(0, 35)}
+                      </p>
+                    )}
                   </div>
-                  {unread > 0 && <span className="unread-badge">{unread}</span>}
-                </div>
+                  {u > 0 && (
+                    <span className="min-w-[20px] h-5 bg-brand-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 flex-shrink-0">
+                      {u}
+                    </span>
+                  )}
+                </button>
               );
             })
           )}
         </div>
+      </div>
 
-        {/* Buyers List (Sellers only) */}
-        {isSeller && selectedProduct && (
-          <div className="buyers-list-messages">
-            <h3>Buyers</h3>
-            {conversationsByProduct[selectedProduct]?.map((conv) => {
-              const unread = getUnreadCount(conv);
-              return (
-                <div key={`${conv.userId}-${conv.productId}`}
-                  className={`buyer-message-item ${selectedConversation?.userId === conv.userId ? 'active' : ''}`}
-                  onClick={() => setSelectedConversation(conv)}>
-                  <div className="msg-info">
-                    <strong>{conv.userName}</strong>
-                  </div>
-                  {unread > 0 && <span className="unread-badge">{unread}</span>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Chat Area */}
-        <div className="chat-area">
-          {selectedConversation ? (
-            <>
-              <div className="chat-header">
-                <strong>{selectedConversation.userName}</strong>
-                <p style={{ fontSize: '12px', color: '#999' }}>{selectedConversation.productDescription.substring(0, 40)}...</p>
+      {/* Chat area */}
+      <div className="flex-1 card flex flex-col overflow-hidden">
+        {selectedConv ? (
+          <>
+            {/* Chat header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+              <img src={selectedConv.productImage} alt="" className="w-9 h-9 rounded-lg object-cover" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">{selectedConv.otherName}</p>
+                <p className="text-xs text-gray-400 truncate">{selectedConv.productDescription.substring(0, 50)}</p>
               </div>
-              <div className="chat-messages">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`message ${msg.senderId === currentUser ? 'sent' : 'received'}`}>
-                    <div className="message-content">
-                      <strong>{msg.senderName}</strong>
-                      <p>{msg.text}</p>
-                      <div className="message-time">
-                        {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                        {msg.senderId === currentUser && (
-                          <span style={{ marginLeft: '4px', color: msg.readBy && msg.readBy.length > 1 ? '#4facfe' : '#999' }}>
-                            {msg.readBy && msg.readBy.length > 1 ? ' ✓✓' : ' ✓'}
+              {isSold && (
+                <span className="badge bg-gray-100 text-gray-500">Sold</span>
+              )}
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {messages.map(msg => {
+                const isMine = msg.senderId === currentUser.uid;
+                return (
+                  <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+                      {!isMine && (
+                        <p className="text-xs text-gray-400 mb-1 ml-1">{msg.senderName}</p>
+                      )}
+                      <div className={`px-3.5 py-2.5 rounded-2xl text-sm ${
+                        isMine
+                          ? 'bg-brand-600 text-white rounded-br-sm'
+                          : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                      }`}>
+                        {msg.text}
+                      </div>
+                      <div className={`flex items-center gap-1 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+                        <span className="text-[10px] text-gray-400">{fmt12(msg.createdAt)}</span>
+                        {isMine && (
+                          <span className={`text-[10px] ${msg.readBy.length > 1 ? 'text-brand-500' : 'text-gray-400'}`}>
+                            {msg.readBy.length > 1 ? '✓✓' : '✓'}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-              <div className="chat-input">
-                {(() => {
-                  const product = products.find(p => p.id === selectedConversation.productId);
-                  return product?.status === 'sold' ? (
-                    <div style={{ flex: 1, textAlign: 'center', padding: '12px', color: '#f5576c', fontWeight: 600, fontSize: '14px' }}>
-                      🚫 This product has already been sold. No further messages can be sent.
-                    </div>
-                  ) : (
-                    <>
-                      <input type="text" placeholder="Type a message..." value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }} />
-                      <button onClick={handleSendMessage}>Send</button>
-                    </>
-                  );
-                })()}
-              </div>
-            </>
-          ) : (
-            <div className="no-chat-selected">
-              <p>{isSeller ? 'Select a product and buyer' : 'Select a product'}</p>
+                );
+              })}
+              <div ref={bottomRef} />
             </div>
-          )}
-        </div>
+
+            {/* Input */}
+            {isSold ? (
+              <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 text-center text-sm text-gray-500">
+                🚫 This product has been sold — chat is closed.
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-100">
+                <input
+                  className="input flex-1"
+                  type="text"
+                  placeholder="Type a message…"
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!text.trim()}
+                  className="btn-primary px-4 py-2.5 disabled:opacity-40"
+                >
+                  Send
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+            <span className="text-5xl mb-3">💬</span>
+            <p className="font-medium">Select a conversation</p>
+          </div>
+        )}
       </div>
     </div>
   );

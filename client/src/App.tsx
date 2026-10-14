@@ -1,130 +1,87 @@
-import { useState, useEffect, useRef } from 'react';
-import './Auth.css';
-import Dashboard from './Dashboard';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import Auth from './Auth';
+import Dashboard from './Dashboard';
+
+export interface UserProfile {
+  uid: string;
+  name: string;
+  email: string;
+  photoURL: string | null;
+}
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loggedInUser, setLoggedInUser] = useState('');
-  const [loggedInEmail, setLoggedInEmail] = useState('');
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const handledByGoogle = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Already handled by handleGoogleLogin — skip double Firestore read
-        if (handledByGoogle.current) {
-          setLoading(false);
-          return;
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Load extra profile data from Firestore (name may differ from Google displayName)
+        try {
+          const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (snap.exists()) {
+            const data = snap.data();
+            setUser({
+              uid:      firebaseUser.uid,
+              name:     data.name || firebaseUser.displayName || 'User',
+              email:    firebaseUser.email || '',
+              photoURL: data.photoURL || firebaseUser.photoURL || null,
+            });
+          } else {
+            // Edge case: auth exists but no Firestore doc yet (race condition on first Google login)
+            setUser({
+              uid:      firebaseUser.uid,
+              name:     firebaseUser.displayName || 'User',
+              email:    firebaseUser.email || '',
+              photoURL: firebaseUser.photoURL || null,
+            });
+          }
+        } catch {
+          setUser({
+            uid:      firebaseUser.uid,
+            name:     firebaseUser.displayName || 'User',
+            email:    firebaseUser.email || '',
+            photoURL: null,
+          });
         }
-        const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
-        if (isGoogleUser && !user.email?.endsWith('@bvrithyderabad.edu.in')) {
-          await signOut(auth);
-          setLoading(false);
-          return;
-        }
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setLoggedInUser(userDoc.data().name);
-          setLoggedInEmail(user.email || '');
-          setIsLoggedIn(true);
-        }
+      } else {
+        setUser(null);
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
-
-  const showError = (message: string) => {
-    setErrorMessage(message);
-    setShowErrorModal(true);
-    setTimeout(() => setShowErrorModal(false), 3000);
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      if (!user.email?.endsWith('@bvrithyderabad.edu.in')) {
-        await signOut(auth);
-        showError('Access restricted to @bvrithyderabad.edu.in accounts only.');
-        return;
-      }
-
-      // Log in instantly using Google profile data
-      handledByGoogle.current = true;
-      setLoggedInUser(user.displayName || user.email || '');
-      setLoggedInEmail(user.email || '');
-      setIsLoggedIn(true);
-
-      // Save to Firestore in background (non-blocking)
-      const userRef = doc(db, 'users', user.uid);
-      getDoc(userRef).then(userDoc => {
-        if (!userDoc.exists()) {
-          setDoc(userRef, { name: user.displayName || user.email, email: user.email, createdAt: Date.now() });
-        } else {
-          // Use stored name if available (user may have updated it)
-          setLoggedInUser(userDoc.data().name);
-        }
-      });
-    } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') showError(error.message);
-    }
-  };
 
   const handleLogout = async () => {
     await signOut(auth);
-    handledByGoogle.current = false;
-    setIsLoggedIn(false);
-    setLoggedInEmail('');
+    setUser(null);
+  };
+
+  const handleProfileUpdate = (updates: Partial<UserProfile>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
   };
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <h2 style={{ color: 'white' }}>Loading...</h2>
-    </div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-green-100">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-brand-700 font-semibold">Loading…</p>
+        </div>
+      </div>
+    );
   }
 
-  if (isLoggedIn) {
-    return <Dashboard userName={loggedInUser} userEmail={loggedInEmail} onLogout={handleLogout} />;
-  }
+  if (!user) return <Auth />;
 
   return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <h2>Campus Marketplace</h2>
-        <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px', fontSize: '15px' }}>
-          Sign in with your college account to continue
-        </p>
-        <button onClick={handleGoogleLogin} style={{
-          width: '100%', padding: '14px', border: '2px solid #e0e0e0', borderRadius: '10px',
-          background: 'white', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-          transition: 'all 0.3s', color: '#333'
-        }}>
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google" />
-          Continue with Google
-        </button>
-        <p style={{ textAlign: 'center', color: '#999', fontSize: '12px', marginTop: '20px' }}>
-          Only @bvrithyderabad.edu.in accounts are allowed
-        </p>
-      </div>
-
-      {showErrorModal && (
-        <div className="error-modal-overlay">
-          <div className="error-modal">
-            <div className="error-icon">⚠</div>
-            <p>{errorMessage}</p>
-          </div>
-        </div>
-      )}
-    </div>
+    <Dashboard
+      user={user}
+      onLogout={handleLogout}
+      onProfileUpdate={handleProfileUpdate}
+    />
   );
 }

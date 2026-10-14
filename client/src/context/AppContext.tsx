@@ -1,248 +1,287 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, where, getDocs, getDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import {
+  collection, addDoc, onSnapshot, query, orderBy,
+  doc, updateDoc, where, getDocs, writeBatch,
+} from 'firebase/firestore';
+import { db } from '../firebase';
+import type { UserProfile } from '../App';
 
-interface Product {
+// ─── Shared Types ────────────────────────────────────────────────────────────
+
+export interface Product {
   id: string;
-  sellerId: string;
+  sellerId: string;       // Firebase UID
   sellerName: string;
-  photo: string;
+  sellerPhoto: string | null;
+  imageURL: string;       // Firebase Storage URL
   description: string;
-  category: string;
-  price: string;
+  category: 'stationery' | 'books' | 'electronics' | 'other';
+  price: number;          // stored as number, not string
+  status: 'active' | 'sold';
   createdAt: number;
-  status?: 'active' | 'sold';
 }
 
-interface Transaction {
+export interface Interest {
+  id: string;
+  productId: string;
+  buyerId: string;        // Firebase UID
+  buyerName: string;
+  sellerId: string;       // Firebase UID
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: number;
+}
+
+export interface Transaction {
   id: string;
   productId: string;
   sellerId: string;
   sellerName: string;
   buyerId: string;
   buyerName: string;
-  photo: string;
+  imageURL: string;
   description: string;
-  price: string;
+  price: number;
   soldAt: number;
 }
 
+export interface AppNotification {
+  id: string;
+  type: 'interest' | 'message' | 'sold' | 'declined' | 'deleted';
+  recipientId: string;
+  message: string;
+  productId?: string;
+  senderId?: string;
+  senderName?: string;
+  isRead: boolean;
+  createdAt: number;
+}
+
+// ─── Context Type ─────────────────────────────────────────────────────────────
+
 interface AppContextType {
+  // Data
   products: Product[];
+  interests: Interest[];
   transactions: Transaction[];
-  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
-  deleteProduct: (productId: string) => void;
-  updateProduct: (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => void;
+  // Current user (from Firebase Auth)
+  currentUser: UserProfile;
+  // Product actions
+  addProduct: (p: Omit<Product, 'id' | 'createdAt' | 'status'>) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<Pick<Product, 'description' | 'price' | 'category'>>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   markAsSold: (productId: string, buyerId: string, buyerName: string) => Promise<void>;
-  currentUser: string;
-  userName: string;
-  userPhoto: string | null;
-  updateUserProfile: (name: string, photo: string | null) => Promise<void>;
+  // Interest helpers
+  getInterestsForProduct: (productId: string) => Interest[];
+  hasInterest: (productId: string) => boolean;
+  interestId: (productId: string) => string | undefined;
+  // Notification helpers
+  sendNotification: (n: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export function AppProvider({ children, userName: initialUserName, userEmail }: { children: ReactNode; userName: string; userEmail: string }) {
-  const [products, setProducts] = useState<Product[]>([]);
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
+export function AppProvider({ children, currentUser }: { children: ReactNode; currentUser: UserProfile }) {
+  const [products, setProducts]         = useState<Product[]>([]);
+  const [interests, setInterests]       = useState<Interest[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [userName, setUserName] = useState(initialUserName);
-  const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
-  // Load user profile from Firestore
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', auth.currentUser?.uid || ''));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUserName(userData.name);
-          setUserPhoto(userData.photo || null);
-        }
-      } catch (error) {
-        console.error('Error loading user profile:', error);
-      }
-    };
-    loadUserProfile();
-  }, [userEmail]);
-
+  // Real-time products
   useEffect(() => {
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q,
-      (snapshot) => {
-        const productsData: Product[] = [];
-        snapshot.forEach((doc) => {
-          productsData.push({ id: doc.id, ...doc.data() } as Product);
-        });
-        setProducts(productsData);
-      },
-      (error) => alert('Error loading products: ' + error.message)
-    );
-    return () => unsubscribe();
+    return onSnapshot(q, (snap) => {
+      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+    });
   }, []);
 
-  // Listen to transactions in real-time
+  // Real-time interests (only ones relevant to current user — as seller or buyer)
   useEffect(() => {
-    const q = query(collection(db, 'transactions'), orderBy('soldAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const transactionsData: Transaction[] = [];
-      snapshot.forEach((doc) => {
-        transactionsData.push({ id: doc.id, ...doc.data() } as Transaction);
-      });
-      setTransactions(transactionsData);
+    if (!currentUser.uid) return;
+
+    // We need two queries: as seller and as buyer
+    const qSeller = query(collection(db, 'interests'), where('sellerId', '==', currentUser.uid));
+    const qBuyer  = query(collection(db, 'interests'), where('buyerId',  '==', currentUser.uid));
+
+    const mergedMap = new Map<string, Interest>();
+
+    const unsubSeller = onSnapshot(qSeller, (snap) => {
+      snap.docs.forEach(d => mergedMap.set(d.id, { id: d.id, ...d.data() } as Interest));
+      // Remove deleted
+      const currentIds = new Set(snap.docs.map(d => d.id));
+      for (const [id, interest] of mergedMap) {
+        if (interest.sellerId === currentUser.uid && !currentIds.has(id)) mergedMap.delete(id);
+      }
+      setInterests(Array.from(mergedMap.values()));
     });
 
-    return () => unsubscribe();
+    const unsubBuyer = onSnapshot(qBuyer, (snap) => {
+      snap.docs.forEach(d => mergedMap.set(d.id, { id: d.id, ...d.data() } as Interest));
+      const currentIds = new Set(snap.docs.map(d => d.id));
+      for (const [id, interest] of mergedMap) {
+        if (interest.buyerId === currentUser.uid && !currentIds.has(id)) mergedMap.delete(id);
+      }
+      setInterests(Array.from(mergedMap.values()));
+    });
+
+    return () => { unsubSeller(); unsubBuyer(); };
+  }, [currentUser.uid]);
+
+  // Real-time transactions
+  useEffect(() => {
+    if (!currentUser.uid) return;
+    // Listen to transactions where user is seller or buyer
+    const qSeller = query(collection(db, 'transactions'), where('sellerId', '==', currentUser.uid), orderBy('soldAt', 'desc'));
+    const qBuyer  = query(collection(db, 'transactions'), where('buyerId',  '==', currentUser.uid), orderBy('soldAt', 'desc'));
+
+    const txMap = new Map<string, Transaction>();
+
+    const unsubSeller = onSnapshot(qSeller, (snap) => {
+      snap.docs.forEach(d => txMap.set(d.id, { id: d.id, ...d.data() } as Transaction));
+      setTransactions(Array.from(txMap.values()).sort((a, b) => b.soldAt - a.soldAt));
+    });
+    const unsubBuyer = onSnapshot(qBuyer, (snap) => {
+      snap.docs.forEach(d => txMap.set(d.id, { id: d.id, ...d.data() } as Transaction));
+      setTransactions(Array.from(txMap.values()).sort((a, b) => b.soldAt - a.soldAt));
+    });
+
+    return () => { unsubSeller(); unsubBuyer(); };
+  }, [currentUser.uid]);
+
+  // ─── Actions ────────────────────────────────────────────────────────────────
+
+  const sendNotification = useCallback(async (n: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>) => {
+    await addDoc(collection(db, 'notifications'), { ...n, isRead: false, createdAt: Date.now() });
   }, []);
 
-  const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
-    try {
-      await addDoc(collection(db, 'products'), {
-        ...product,
-        sellerName: userName,
-        sellerId: userEmail,
-        status: 'active',
-        createdAt: Date.now(),
-      });
-    } catch (error: any) {
-      alert('Failed to add product: ' + error.message);
-    }
-  };
+  const addProduct = useCallback(async (product: Omit<Product, 'id' | 'createdAt' | 'status'>) => {
+    await addDoc(collection(db, 'products'), {
+      ...product,
+      status: 'active',
+      createdAt: Date.now(),
+    });
+  }, []);
 
-  const deleteProduct = async (productId: string) => {
-    try {
-      await deleteDoc(doc(db, 'products', productId));
-    } catch (error: any) {
-      alert('Failed to delete product: ' + error.message);
-    }
-  };
+  const updateProduct = useCallback(async (
+    id: string,
+    updates: Partial<Pick<Product, 'description' | 'price' | 'category'>>
+  ) => {
+    await updateDoc(doc(db, 'products', id), updates as any);
+  }, []);
 
-  const updateProduct = async (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt' | 'sellerId'>>) => {
-    try {
-      await updateDoc(doc(db, 'products', productId), updates as any);
-    } catch (error: any) {
-      alert('Failed to update product: ' + error.message);
-    }
-  };
+  const deleteProduct = useCallback(async (id: string) => {
+    const batch = writeBatch(db);
 
-  const markAsSold = async (productId: string, buyerId: string, buyerName: string) => {
-    try {
-      const product = products.find(p => p.id === productId);
-      if (!product) throw new Error('Product not found');
+    // Notify all pending buyers
+    const interestsSnap = await getDocs(
+      query(collection(db, 'interests'), where('productId', '==', id), where('status', '==', 'pending'))
+    );
+    const product = products.find(p => p.id === id);
 
-      await addDoc(collection(db, 'transactions'), {
-        productId,
-        sellerId: product.sellerId,
-        sellerName: product.sellerName,
-        buyerId,
-        buyerName,
-        photo: product.photo,
-        description: product.description,
-        price: product.price,
-        soldAt: Date.now(),
-      });
-
-      await updateDoc(doc(db, 'products', productId), { status: 'sold' });
-
-      // Notify the buyer
-      await addDoc(collection(db, 'notifications'), {
-        type: 'sold',
-        recipientId: buyerId,
-        message: `🎉 Your purchase of "${product.description.substring(0, 40)}" has been confirmed by the seller!`,
-        productId,
-        userId: product.sellerId,
-        userName: product.sellerName,
+    interestsSnap.docs.forEach(d => {
+      batch.delete(doc(db, 'interests', d.id));
+      // Add notification for each buyer
+      const notifRef = doc(collection(db, 'notifications'));
+      batch.set(notifRef, {
+        type: 'deleted',
+        recipientId: d.data().buyerId,
+        message: `"${product?.description.substring(0, 40) || 'A product'}" was removed by the seller.`,
+        productId: id,
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
         isRead: false,
         createdAt: Date.now(),
       });
+    });
 
-      const interestsQuery = query(collection(db, 'interests'), where('productId', '==', productId));
-      const interestsSnapshot = await getDocs(interestsQuery);
-      const updatePromises = interestsSnapshot.docs.map(docSnap => {
-        const isWinner = docSnap.data().buyerId === buyerId;
-        const promises: Promise<any>[] = [
-          updateDoc(doc(db, 'interests', docSnap.id), {
-            status: isWinner ? 'accepted' : 'declined'
-          })
-        ];
-        // Notify declined buyers
-        if (!isWinner) {
-          promises.push(
-            addDoc(collection(db, 'notifications'), {
-              type: 'sold',
-              recipientId: docSnap.data().buyerId,
-              message: `Sorry, "${product.description.substring(0, 40)}" was sold to someone else.`,
-              productId,
-              isRead: false,
-              createdAt: Date.now(),
-            })
-          );
-        }
-        return Promise.all(promises);
+    batch.delete(doc(db, 'products', id));
+    await batch.commit();
+  }, [products, currentUser]);
+
+  const markAsSold = useCallback(async (productId: string, buyerId: string, buyerName: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) throw new Error('Product not found');
+
+    const batch = writeBatch(db);
+
+    // Create transaction record
+    const txRef = doc(collection(db, 'transactions'));
+    batch.set(txRef, {
+      productId,
+      sellerId:   product.sellerId,
+      sellerName: product.sellerName,
+      buyerId,
+      buyerName,
+      imageURL:    product.imageURL,
+      description: product.description,
+      price:       product.price,
+      soldAt:      Date.now(),
+    });
+
+    // Mark product sold
+    batch.update(doc(db, 'products', productId), { status: 'sold' });
+
+    // Update all interests: winner = accepted, others = declined
+    const interestsSnap = await getDocs(
+      query(collection(db, 'interests'), where('productId', '==', productId))
+    );
+
+    interestsSnap.docs.forEach(d => {
+      const isWinner = d.data().buyerId === buyerId;
+      batch.update(doc(db, 'interests', d.id), {
+        status: isWinner ? 'accepted' : 'declined',
       });
-      await Promise.all(updatePromises);
-    } catch (error: any) {
-      console.error('Error marking as sold:', error);
-      alert('Failed to mark as sold: ' + error.message);
-    }
-  };
 
-  const updateUserProfile = async (name: string, photo: string | null) => {
-    setUserName(name);
-    setUserPhoto(photo);
-
-    try {
-      // Update user profile in Firestore users collection
-      if (auth.currentUser) {
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-          name,
-          photo
+      // Notify declined buyers
+      if (!isWinner) {
+        const notifRef = doc(collection(db, 'notifications'));
+        batch.set(notifRef, {
+          type: 'declined',
+          recipientId: d.data().buyerId,
+          message: `Sorry, "${product.description.substring(0, 40)}" was sold to someone else.`,
+          productId,
+          isRead: false,
+          createdAt: Date.now(),
         });
       }
+    });
 
-      // Update Firestore: products with seller name
-      const productsQuery = query(collection(db, 'products'), where('sellerId', '==', userEmail));
-      const productsSnapshot = await getDocs(productsQuery);
-      const productUpdates = productsSnapshot.docs.map(docSnap => 
-        updateDoc(doc(db, 'products', docSnap.id), { sellerName: name })
-      );
-      await Promise.all(productUpdates);
+    // Notify the winning buyer
+    const winNotifRef = doc(collection(db, 'notifications'));
+    batch.set(winNotifRef, {
+      type: 'sold',
+      recipientId: buyerId,
+      message: `🎉 "${product.description.substring(0, 40)}" — ${currentUser.name} confirmed the sale to you!`,
+      productId,
+      isRead: false,
+      createdAt: Date.now(),
+    });
 
-      // Update Firestore: interests with buyer name
-      const buyerInterestsQuery = query(collection(db, 'interests'), where('buyerId', '==', userEmail));
-      const buyerInterestsSnapshot = await getDocs(buyerInterestsQuery);
-      const buyerUpdates = buyerInterestsSnapshot.docs.map(docSnap => 
-        updateDoc(doc(db, 'interests', docSnap.id), { buyerName: name })
-      );
-      await Promise.all(buyerUpdates);
+    await batch.commit();
+  }, [products, currentUser]);
 
-      // Update Firestore: messages with sender name
-      const messagesQuery = query(collection(db, 'messages'), where('senderId', '==', userEmail));
-      const messagesSnapshot = await getDocs(messagesQuery);
-      const messageUpdates = messagesSnapshot.docs.map(docSnap => 
-        updateDoc(doc(db, 'messages', docSnap.id), { senderName: name })
-      );
-      await Promise.all(messageUpdates);
+  // ─── Helpers ────────────────────────────────────────────────────────────────
 
-      console.log('Profile updated successfully across all collections');
-    } catch (error: any) {
-      console.error('Error updating profile in Firestore:', error);
-      alert('Profile updated locally, but some data may not sync: ' + error.message);
-    }
-  };
+  const getInterestsForProduct = useCallback((productId: string) =>
+    interests.filter(i => i.productId === productId),
+  [interests]);
+
+  const hasInterest = useCallback((productId: string) =>
+    interests.some(i => i.productId === productId && i.buyerId === currentUser.uid),
+  [interests, currentUser.uid]);
+
+  const interestId = useCallback((productId: string) =>
+    interests.find(i => i.productId === productId && i.buyerId === currentUser.uid)?.id,
+  [interests, currentUser.uid]);
 
   return (
-    <AppContext.Provider value={{ 
-      products, 
-      transactions,
-      addProduct,
-      deleteProduct,
-      updateProduct,
-      markAsSold,
-      currentUser: userEmail,
-      userName,
-      userPhoto,
-      updateUserProfile
+    <AppContext.Provider value={{
+      products, interests, transactions,
+      currentUser,
+      addProduct, updateProduct, deleteProduct, markAsSold,
+      getInterestsForProduct, hasInterest, interestId,
+      sendNotification,
     }}>
       {children}
     </AppContext.Provider>
@@ -250,9 +289,7 @@ export function AppProvider({ children, userName: initialUserName, userEmail }: 
 }
 
 export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
-  return context;
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be used within AppProvider');
+  return ctx;
 }
